@@ -1,0 +1,39 @@
+project:
+  type: default
+  output-dir: output/reports
+  execute-dir: project
+
+format:
+  html:
+    theme: cosmo
+    toc: true
+    toc-depth: 3
+    code-fold: false
+    code-tools: true
+    embed-resources: false
+    fig-width: 10
+    fig-height: 6
+    df-print: paged
+  pdf:
+    toc: true
+    number-sections: true
+    colorlinks: true
+    geometry:
+      - margin=0.75in
+      - top=0.5in
+      - bottom=1in
+    fig-width: 7
+    fig-height: 5
+
+execute:
+  echo: true
+  warning: true
+  error: false
+  cache: false
+  freeze: false
+
+jupyter:
+  kernelspec:
+    name: "icicle"
+    language: "python"
+    display_name: "Python (icicle)"

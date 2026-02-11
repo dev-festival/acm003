@@ -1,0 +1,36 @@
+# Jupyter Notebook
+.ipynb_checkpoints/
+*/.ipynb_checkpoints/*
+
+#VSCode
+.vscode/
+
+# Python
+__pycache__/
+*.py[cod]
+*.$py.class
+*.so
+*.Python
+config_local.py
+
+# Virtual Environments
+env/
+venv/
+ENV/
+conda-env/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment Variables
+.env
+
+# Exports
+output/
+*.csv
+*.xlsx
+*.pkl
+*.png
+*.pdf
+*.html

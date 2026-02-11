@@ -1,0 +1,331 @@
+---
+title: "AAP ACM Coverage to Standard"
+subtitle: "Outline for Implementation of Standards"
+format:
+  html:
+    toc: true
+    toc-depth: 3
+  pdf:
+    toc: false
+    number-sections: false
+    geometry:
+      - margin=0.75in          # All margins
+      - top=0.45in              # Less top margin
+      - bottom= 1in             # Standard bottom
+      - left=0.75in            # Narrower sides
+      - right=0.75in
+    include-in-header:
+      text: |
+        \usepackage{titling}
+        \postdate{\par\end{center}\vspace{-3cm}}
+execute:
+  echo: false
+  warning: false
+---
+
+## Purpose 
+
+Show how to use the Standard practices outlined in [MESD-ACM-0001](https://globalhonda.sharepoint.com/:w:/r/sites/gna00880-08-Reliability/Shared%20Documents/08-%20Reliability/04-ACM/00_Overall%20Documents/05_Frameworks/000%20-%20Standard%20for%20Tracking%20ACM%20Technology%20Application.docx?d=w9b9e0e5d7f2c4fdbb8f5ee2ce4919adb&csf=1&web=1&e=uMqNtS) and how it ties to [Draft 001 - ACM Technology Application](https://globalhonda.sharepoint.com/:w:/r/sites/gna00880-08-Reliability/Shared%20Documents/08-%20Reliability/04-ACM/00_Overall%20Documents/05_Frameworks/001%20-%20Asset%20Condition%20Monitoring%20Technology%20Application%20Specification.docx?d=wb984d67b7b004337aa6b469a06190d85&csf=1&web=1&e=JHKuoG) in order to judge Coverage Needs vs Coverage Actuals. 
+
+```{mermaid}
+flowchart LR
+
+NeedsMonitoring[Needs Monitoring] 
+HasMonitoring[Has Monitoring]
+CoverageReport[Coverage Report]
+
+HasMonitoring --> CoverageReport
+NeedsMonitoring --> CoverageReport
+
+```
+
+
+## Has Monitoring
+
+Essentially, there has to be some way to read it out of maximo to ensure agile / repeatable assessment. 
+
+```{mermaid}
+flowchart LR
+
+disconnectedDB[Disconnected Data Base]
+connectableDB[connectable Data Base]
+nativeMaximo[NativeMaximo]
+SQL1[SQL Routes]
+SQL2[SQL Meters]
+Merging[Python]
+HasMonitoring[Monitored List]
+
+
+connectableDB -. API .-> Merging
+connectableDB --> SQL1
+disconnectedDB --> SQL1
+nativeMaximo --> SQL2
+SQL1 --> Merging
+SQL2 --> Merging
+Merging --> HasMonitoring
+
+
+click disconnectedDB "#disconnected-database"
+click connectableDB "#connectable-database"
+click nativeMaximo "#native-maximo"
+click SQL1 "#sql-routes"
+click SQL2 "#sql-meters"
+click Merging "#python-merging"
+click HasMonitoring "#monitored-list"
+```
+
+
+### Connectable Database {#connectable-database}
+
+![Connectable Database Flow](/img/acm003_04.png)
+
+::: {.callout-important}
+If the API is not set up, the Route Coding of Disconnected Databases needs to be followed. 
+:::
+
+Connectable Database means the database is hosted on a cloud somewhere and is **capable of using API** to integrate the mapping of asset numbers and pull down data on the latest readings. 
+
+Examples: 
+
+* Waites - Vibration
+* Hydac - Lubrication
+* FLUKE - IR / Other
+* ZDT - Fanuc
+
+
+
+### Disconnected Databases {#disconnected-database}
+
+![Disconnected Database Flow](/img/acm003_03.png)
+ 
+ Disconnected means no native asset number mapping and no way to connect to pull asset numbers
+
+ Examples: 
+
+ * FLIR - IR
+ * MOTION - Vibration
+ * ONTrak - Ultrasound *
+ * AllTest - MotorCurrent Testing *
+ * LubeCon - ChainMonitoring * 
+
+*Not Sure if Connectable or Not
+
+So for systems like this we need to follow the standard naming conventions of routes outlined in **MESD-ACM-0001**.
+
+---
+
+Screenshot from the **MESD-ACM-0001**: (two underscores) & space-space
+
+![Standard Route Coding](/img/acm003_00.png)
+
+And Some examples in Maximo: 
+
+![Examples in Maximo](/img/acm003_01.png)
+
+Then we can design a query to pull all assets within routes that follow this convention. 
+
+### SQL Routes {#sql-routes}
+
+![SQL Routes Flow](/img/acm003_05.png)
+
+The SQL script to collect the assets from the standard route uses this code: 
+
+```sql
+WHERE REGEXP_LIKE(ROUTE.DESCRIPTION, '^[A-Z0-9]+_[A-Z0-9]+_[A-Z0-9]+ - .+') 
+```
+
+::: {.callout-note}
+Which basically means - only include routes where the description looks like this:
+
+**THREE_PART_CODE - Some text description**
+:::
+
+Which matches to the convention outline above. 
+
+::: {.callout-tip}
+You can use this code in the *WHERE CLAUSE* of maximo to save to maximo. 
+
+![where clause](/img/acm003_02.png)
+:::
+
+The FULL SQL script for the purpose of collecting the assets is: 
+
+```{python}
+#| echo: false
+#| output: asis
+
+import os
+
+data_dir = r"C:\Users\VF033899\AppData\Roaming\DBeaverData\workspace6\General\Scripts\maximo-sql-scripts\scripts\projects\102ki-acm-2026"
+
+with open(os.path.join(data_dir, "acm_assets_routes-coverage.sql"), 'r') as f:
+    print(f"```sql\n{f.read()}\n```")
+```
+
+The output of this script looks gives a table such as this in a database navigator such as DBeaver. We can see that the route descriptions follow the coding, and the column names are as the SQL describes. 
+
+![Dbeaver SQL Routes Output](/img/acm003_08.png) 
+
+We then transform this information into a table that has columns for **Technology** and **Vendor** per asset: 
+
+![Streamlit Routes Tech-Vendor Detail](/img/acm003_10.png)
+
+And then pivot that table out to show each asset's technology coverage. 
+
+![Streamlit Routes Coverage Summary](/img/acm003_09.png)
+
+#### Routes Coverage Dashboard
+
+This table can be visualized in a number of ways. For example, to see number of asset by technology and department. 
+
+![Technology Coverage by Department](/img/acm003_11.png)
+
+Or the flip of that, Department coverage by Technology
+
+![Department Coverage by Technology](/img/acm003_12.png)
+
+### Native Maximo {#native-maximo}
+
+![Native Maximo Flow](/img/acm003_06.png)
+
+Native Maximo is metering that is taking place within maximo and readings are able to pulled directly off the meter records. 
+
+Since these assets are configured within maximo the approach is a little bit different, and in some ways a little bit more simple.  We use this querry to pull the **METER NAME, LAST READING DATE, and ASSET NUMBER** along with some other useful detail out of maximo. 
+
+### SQL Meters {#sql-meters}
+
+![SQL Meters Flow](/img/acm003_07.png)
+
+
+```{python}
+#| echo: false
+#| output: asis
+
+import os
+
+data_dir = r"C:\Users\VF033899\AppData\Roaming\DBeaverData\workspace6\General\Scripts\maximo-sql-scripts\scripts\projects\102ki-acm-2026"
+
+with open(os.path.join(data_dir, "acm_assets_meters-coverage.sql"), 'r') as f:
+    print(f"```sql\n{f.read()}\n```")
+```
+
+
+The result of this query is 1 row per meter applied to an asset: 
+
+![Meters coverage raw](/img/acm003_13.png)
+
+Upon running this query we find 24,091 Meters that are applied to 8,223 assets. Two thing will need to happen from here...
+
+1.  figure out which meters are active
+2.  figure out how many meters each asset has. 
+3.  classify the asset as either Y for has general metering or N for none. 
+
+
+#### Active Meters 
+
+We can assess the activity of the meters using the **LASTREADING** Date. 
+
+I start by checking the general *missingness* of the data at large.
+
+| count | percentage | Annual Savings (Hours) |
+|---:|---:|---|
+| ASSETNUM | 0 | 0.000000 |
+| DESCRIPTION | 0 | 0.000000 |
+| METERNAME | 0 | 0.000000 |
+| METERDESCRIPTION | 0 | 0.000000 |
+| METERTYPE | 0 | 0.000000 |
+| AVGCALCMETHOD | 19488 | 80.893280 |
+| ROLLDOWNSOURCE | 19570 | 81.233656 |
+| REMARKS | 3904 | 16.205222 |
+| POINTNUM | 15171 | 62.973725 |
+| LASTREADING | 5679 | 23.573119 |
+| LASTREADING_DATE | 5568 | 23.112366 |
+| CHANGEBY | 0 | 0.000000 |
+| LASTREADINGINSPCTR | 5570 | 23.120667 |
+
+: 01-26-2026 example of missing data from Maximo Meters 
+
+Seeing that *LastReading is 23% empty* raises some questions. Can look at them and maybe investigate why ther is no reading... ? 
+
+[meters no reading date](C:\Users\VF033899\AppData\Roaming\DBeaverData\workspace6\General\Scripts\maximo-sql-scripts\scripts\projects\102ki-acm-2026\meters_flagged_null_readings.csv)
+
+Another question to ask is if there should be a time limit on *how old the last reading can be before the asset falls out of coverage*. 
+
+#### How Many Meters Per Asset 
+
+We aggregate the data above to the asset level with 
+- Count of Meter Name
+- Max of Last Reading
+
+to get an output like this: 
+
+![Meter_count aggregated to the asset](/img/acm003_14.png)
+
+#### Qualify the Meter for "Has General Metering"
+
+Using some simple logic on Last Reading Date: 
+
+```{mermaid}
+flowchart LR
+
+A{Within 1 YR?} --> |Yes| B[Has General Meter - Y]
+A --> |No| C[None - N]
+```
+
+Add that result to 2 new columns... `READING_WITHIN_1YR` and `HAS_GM`. 
+
+
+![HAS_GM column added](/img/acm003_15.png)
+
+
+### Python Merge for Complete Picture
+
+``` documentation in progress ```
+
+First pass looks something like: 
+
+| Category | Coverage |  |
+|---|---|---|
+| GM (General Metering) Coverage:  | 5,005 assets (60.9%) |  |
+| IR (Infrared) Coverage: | 360 assets (4.4%) |  |
+| UL (Ultrasound) Coverage: | 207 assets (2.5%) |  |
+| VI (Vibration) Coverage: | 345 assets (4.2%) |  |
+| LU (Lubrication) Coverage: | 131 assets (1.6%) |  |
+| MC Coverage: | 0 assets (0.0%) |  |
+| ZD Coverage: | 86 assets (1.0%) |  |
+
+## Needs Monitoring
+
+This one is a little bit more difficult since each technology or tool monitors a specific component, and usually for a specific failure mode... and Maximo does not offer the granularity to break assets down to components. 
+
+My solution to this was to identify which technologies apply to which components in Draft 001 - ACM Technology Application table 2
+
+Where **P** means primary application and **S** means secondary application
+
+```{python}
+#| echo: false
+#| label: component-map
+#| tbl-cap: Component to Technology Map
+
+import pandas as pd
+
+# Direct path to the directory
+data_dir = r"C:\Users\VF033899\AppData\Roaming\DBeaverData\workspace6\General\Scripts\maximo-sql-scripts\scripts\projects\102ki-acm-2026"
+
+# Read specific CSV files
+component_map = pd.read_csv(f"{data_dir}/component_map.csv")
+
+component_map.style.hide(axis='index')
+```
+
+## Documentation
+
+### Related Resources
+- [Link to documentation]
+- [Link to repository]
+- [Link to requirements]
+
+### Key Contacts
+- **Stakeholder:** 
+- **Team Members:** 
+

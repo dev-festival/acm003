@@ -1,0 +1,127 @@
+---
+title: "AAP ACM Coverage to Standard"
+subtitle: "Outline for Implementation of Standards"
+format:
+  html:
+    toc: true
+    toc-depth: 3
+  pdf:
+    toc: false
+    number-sections: false
+    geometry:
+      - margin=0.75in          # All margins
+      - top=0.45in              # Less top margin
+      - bottom= 1in             # Standard bottom
+      - left=0.75in            # Narrower sides
+      - right=0.75in
+    include-in-header:
+      text: |
+        \usepackage{titling}
+        \postdate{\par\end{center}\vspace{-3cm}}
+execute:
+  echo: false
+  warning: false
+---
+
+```{mermaid}
+flowchart TB
+    %% Data Sources
+    subgraph Sources["Data Sources (Maximo SQL)"]
+        SQL_METERS[("acm_assets_meters-coverage.sql<br/>AssetMeter Table<br/>24,091 records")]
+        SQL_ROUTES[("acm_assets_routes-coverage.sql<br/>Route Table<br/>2,370 records")]
+    end
+
+    %% Meters Processing Pipeline
+    subgraph MetersProcess["Meters Coverage Pipeline"]
+        METERS_RAW["Raw Meters Data<br/>24,091 meter records<br/>15 columns"]
+        METERS_CLEAN["Data Cleaning<br/>- Convert to category dtypes<br/>- Parse datetime"]
+        METERS_FLAG["Flagged Data Output<br/>meters_flagged.pkl<br/>Null reading detection"]
+        METERS_AGG["Aggregate by ASSETNUM<br/>- Count meters<br/>- Max reading date<br/>- First DESCRIPTION/CLASS/DEPT"]
+        METERS_LOGIC["Apply HAS_GM Logic<br/>Y if reading within 1 year<br/>N otherwise"]
+        METERS_OUT["meters-coverage.pkl<br/>8,223 assets<br/>8 columns"]
+        METERS_CSV["meters_main.csv"]
+    end
+
+    %% Routes Processing Pipeline
+    subgraph RoutesProcess["Routes Coverage Pipeline"]
+        ROUTES_RAW["Raw Routes Data<br/>2,370 route-asset records<br/>6 columns"]
+        ROUTES_PARSE["Parse Route Description<br/>Regex: DEPT_TECH_VENDOR<br/>Extract: IR, UL, VI, LU, MC, ZD"]
+        ROUTES_DETAIL["Detail Output<br/>asset-tech-vendor-detail.pkl<br/>2,252 combos"]
+        ROUTES_AGG["Aggregate by ASSETNUM<br/>- Group technologies<br/>- List vendors"]
+        ROUTES_LOGIC["Apply HAS_TECH Logic<br/>IR_HAS, UL_HAS, VI_HAS<br/>LU_HAS, MC_HAS, ZD_HAS"]
+        ROUTES_OUT["route-coverage.pkl<br/>1,466 assets<br/>10 columns"]
+        ROUTES_CSV["route-coverage.csv"]
+    end
+
+    %% Future Enhancement
+    subgraph FutureOutputs["Proposed Future Outputs"]
+        METER_MAP["metername-to-tech-map.csv<br/>Unique METERNAME list<br/>Technology mapping"]
+    end
+
+    %% NEW MERGE STRATEGY
+    subgraph NewMerge["NEW: Unified Merge Strategy"]
+        direction TB
+        MERGE_PRE["Pre-Merge Data<br/>Meters: 24,091 records<br/>Routes: 2,370 records"]
+        MERGE_COMBINE["Outer Join on ASSETNUM<br/>Preserve all meter & route records"]
+        MERGE_UNIFIED["Unified Aggregation<br/>Group by ASSETNUM"]
+        MERGE_LOGIC["Apply All Coverage Logic<br/>- HAS_GM (meter reading < 1 yr)<br/>- IR/UL/VI/LU/MC/ZD (route presence)<br/>- VENDOR tracking"]
+        MERGE_FINAL["meters-routes-coverage.pkl<br/>~8,223 assets (all meters + routes)<br/>Single DEPT, CLASS, ASSET_DESC<br/>+ GM, IR, UL, VI, LU, MC, ZD flags<br/>+ Vendor details"]
+        MERGE_CSV["meters-routes-coverage.csv"]
+    end
+
+    %% OLD MERGE APPROACH (for reference)
+    subgraph OldMerge["OLD: Post-Aggregation Merge (Deprecated)"]
+        OLD_LEFT["Left Join on ASSETNUM<br/>meters-coverage (8,223)<br/>+ route-coverage (1,466)"]
+        OLD_CONFLICT["Issue: Duplicate columns<br/>DEPT_METERS, DEPT_ROUTES<br/>CLASS_METERS, CLASS_ROUTES"]
+        OLD_OUT["meters-routes-coverage.pkl<br/>Column conflicts"]
+    end
+
+    %% Data Flow Connections - Meters
+    SQL_METERS --> METERS_RAW
+    METERS_RAW --> METERS_CLEAN
+    METERS_CLEAN --> METERS_FLAG
+    METERS_CLEAN --> METERS_AGG
+    METERS_AGG --> METERS_LOGIC
+    METERS_LOGIC --> METERS_OUT
+    METERS_OUT --> METERS_CSV
+    
+    %% Data Flow Connections - Routes
+    SQL_ROUTES --> ROUTES_RAW
+    ROUTES_RAW --> ROUTES_PARSE
+    ROUTES_PARSE --> ROUTES_DETAIL
+    ROUTES_PARSE --> ROUTES_AGG
+    ROUTES_AGG --> ROUTES_LOGIC
+    ROUTES_LOGIC --> ROUTES_OUT
+    ROUTES_OUT --> ROUTES_CSV
+
+    %% NEW MERGE CONNECTIONS
+    METERS_RAW -.->|"Use raw data"| MERGE_PRE
+    ROUTES_RAW -.->|"Use raw data"| MERGE_PRE
+    MERGE_PRE --> MERGE_COMBINE
+    MERGE_COMBINE --> MERGE_UNIFIED
+    MERGE_UNIFIED --> MERGE_LOGIC
+    MERGE_LOGIC --> MERGE_FINAL
+    MERGE_FINAL --> MERGE_CSV
+
+    %% OLD MERGE CONNECTIONS (dotted to show deprecated)
+    METERS_OUT -.->|"Old approach"| OLD_LEFT
+    ROUTES_OUT -.->|"Old approach"| OLD_LEFT
+    OLD_LEFT -.-> OLD_CONFLICT
+    OLD_CONFLICT -.-> OLD_OUT
+
+    %% Styling
+    classDef source fill:#e1f5ff,stroke:#01579b,stroke-width:2px
+    classDef process fill:#fff9c4,stroke:#f57f17,stroke-width:2px
+    classDef output fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px
+    classDef merge fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    classDef deprecated fill:#ffebee,stroke:#c62828,stroke-width:2px,stroke-dasharray: 5 5
+    classDef future fill:#e0f2f1,stroke:#00695c,stroke-width:2px,stroke-dasharray: 3 3
+
+    class SQL_METERS,SQL_ROUTES source
+    class METERS_RAW,ROUTES_RAW,METERS_CLEAN,METERS_AGG,METERS_LOGIC,ROUTES_PARSE,ROUTES_AGG,ROUTES_LOGIC process
+    class METERS_OUT,ROUTES_OUT,METERS_CSV,ROUTES_CSV,METERS_FLAG,ROUTES_DETAIL output
+    class MERGE_PRE,MERGE_COMBINE,MERGE_UNIFIED,MERGE_LOGIC merge
+    class MERGE_FINAL,MERGE_CSV output
+    class OLD_LEFT,OLD_CONFLICT,OLD_OUT deprecated
+    class METER_MAP future
+    ```
