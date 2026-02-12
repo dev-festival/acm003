@@ -577,9 +577,169 @@ print(dept_primary_df.to_string(index=False))
 
 
 
-# Route-Based Monitoring {background-color="#7c2d12"}
+# Phase II - HAS Monitoring (Routes) {background-color="#7c2d12"}
 
-## Data Architecture 
+## ROUTES SQL PULL
+
+```{python}
+#| echo: false
+#| label: SQL-has-monitoring-routes
+
+# Start timing
+start_time = time.time()
+
+# Run the sql script
+has_mon_r = run_query_from_file('query/has_mon-routes.sql')
+
+# Calculate and print execution time
+execution_time = time.time() - start_time
+print(f"Query execution time: {execution_time:.2f} seconds \n")
+
+has_mon_r['ROUTE'] = has_mon_r['ROUTE'].astype('category')
+has_mon_r['ASSETNUM'] = has_mon_r['ASSETNUM'].astype('category')
+has_mon_r['CLASS'] = has_mon_r['CLASS'].astype('category')
+has_mon_r['DEPT'] = has_mon_r['DEPT'].astype('category')
+
+
+has_mon_r.info()
+
+#Memory Usage
+print(f"Memory usage: {has_mon_r.memory_usage(deep=True).sum() / 1024**2:.2f} MB")
+```
+
+```{python}
+#| echo: false
+#| label: route-parse-codes
+
+# Step 1: Parse the route description to extract technology code
+# Pattern: {DEPT}_{TECH}_{SUBTYPE} - Description
+def extract_tech_from_route(route_desc):
+    """
+    Extract technology code from route description
+    Example: '2PA_UL_UEDMS - Penthouse Route 1' -> 'UL'
+    """
+    # Better null check for pandas
+    if not isinstance(route_desc, str):
+        return None
+    
+    # Match pattern: XXX_YY_ZZZ where YY is the tech code
+    match = re.match(r'^([A-Z0-9]+)_([A-Z0-9]+)_([A-Z0-9]+)\s*-', route_desc)
+    if match:
+        tech = match.group(2)  # Get the second part (tech code)
+        return tech
+    return None
+
+def extract_dept_from_route(route_desc):
+    """
+    Extract department code from route description
+    Example: '2PA_UL_UEDMS - Penthouse Route 1' -> '2PA'
+    """
+    if not isinstance(route_desc, str):
+        return None
+    
+    match = re.match(r'^([A-Z0-9]+)_([A-Z0-9]+)_([A-Z0-9]+)\s*-', route_desc)
+    if match:
+        return match.group(1)  # First part is DEPT
+    return None
+
+def extract_vendor_from_route(route_desc):
+    """
+    Extract vendor code from route description
+    Example: '2PA_UL_UEDMS - Penthouse Route 1' -> 'UEDMS'
+    """
+    if not isinstance(route_desc, str):
+        return None
+    
+    match = re.match(r'^([A-Z0-9]+)_([A-Z0-9]+)_([A-Z0-9]+)\s*-', route_desc)
+    if match:
+        return match.group(3)  # Third part is VENDOR
+    return None
+```
+
+## Route Code Parsing
+
+```{python}
+#| echo: false
+#| label: route-apply-code-parsing
+#
+# Cell 4: Apply the function to create TECH column
+has_mon_r['TECH'] = has_mon_r['ROUTE_DESC'].apply(extract_tech_from_route)
+has_mon_r['ROUTE_DEPT'] = has_mon_r['ROUTE_DESC'].apply(extract_dept_from_route)
+has_mon_r['VENDOR'] = has_mon_r['ROUTE_DESC'].apply(extract_vendor_from_route)
+
+# Look at results
+has_mon_r[['ROUTE', 'ROUTE_DESC', 'ROUTE_DEPT', 'TECH', 'VENDOR']].drop_duplicates('ROUTE').head(10)
+```
+
+## Route Application Summary
+
+```{python}
+#| echo: false
+#| label: route-asset-level-summary
+
+# OUTPUT 1: Asset-level summary (one row per asset)
+# This keeps the existing structure with Y/N columns
+asset_route_tech = has_mon_r[has_mon_r['TECH'].notna()].groupby('ASSETNUM', observed=False)['TECH'].apply(list).reset_index()
+asset_route_tech.columns = ['ASSETNUM', 'TECHNOLOGIES']
+
+# Get asset details
+asset_route_details = has_mon_r.groupby('ASSETNUM', observed=False).first()[['ASSET_DESC', 'CLASS', 'DEPT']].reset_index()
+
+# Merge together for summary view
+asset_route_coverage = asset_route_details.merge(asset_route_tech, on='ASSETNUM', how='left')
+
+print(f"Summary view: {len(asset_route_coverage)} unique assets")
+```
+
+```{python}
+#| echo: false
+#| label: route-asset-tech-vendor-detail
+
+
+# OUTPUT 2: Asset-Tech-Vendor detail (multiple rows per asset)
+# This preserves all the granular relationships
+asset_route_tech_vendor_detail = has_mon_r[has_mon_r['TECH'].notna()][['ASSETNUM', 'ASSET_DESC', 'CLASS', 'DEPT', 'ROUTE_DEPT', 'TECH', 'VENDOR']].copy()
+
+# Remove duplicates (same asset might be on multiple routes with same tech-vendor combo)
+asset_route_tech_vendor_detail = asset_route_tech_vendor_detail.drop_duplicates(subset=['ASSETNUM', 'TECH', 'VENDOR'])
+
+# Sort for readability
+asset_route_tech_vendor_detail = asset_route_tech_vendor_detail.sort_values(['DEPT', 'TECH', 'VENDOR', 'ASSETNUM']).reset_index(drop=True)
+
+
+print(f"Detail view: {len(asset_route_tech_vendor_detail)} technology to asset combinations")
+```
+
+## Add HAS_TECH Column 
+
+```{python}
+#| echo: false
+#| label: route-add-has-columns
+
+# Get all techs EXCEPT GM (since it comes from meters, not routes)
+route_techs = [tech for tech in tech_cols if tech not in ['GM']]
+
+# Cell 7: Create HAS columns (Y/N for each technology) - summary view only
+# Note: GM (General Metering) comes from a separate SQL Meters query, not included here
+for tech in route_techs:  # Removed 'GM'
+    col_name = f'HAS_{tech}'
+    asset_route_coverage[col_name] = asset_route_coverage['TECHNOLOGIES'].apply(
+        lambda x: 'Y' if isinstance(x, list) and tech in x else 'N'
+    )
+
+# Drop the temporary list column
+asset_route_coverage = asset_route_coverage.drop('TECHNOLOGIES', axis=1)
+
+# Show summary stats
+print("\nAsset Coverage Summary (Route-based monitoring):")
+total = len(asset_route_coverage)
+for tech in route_techs:  
+    count = (asset_route_coverage[f'HAS_{tech}'] == 'Y').sum()
+    print(f"{tech}: {count} assets ({count/total*100:.1f}%)")
+print("\nNote: GM (General Metering) data comes from separate SQL Meters query")
+```
+
+## Data Architecture
 
 ```{mermaid}
 %%| label: mermaid-target-OUT
@@ -616,6 +776,78 @@ flowchart LR
 Three pathways converge: disconnected databases, connectable databases, and native Maximo meters
 :::
 
+# PHASE III - HAS Monitoring (Meters) {background-color="#7c2d12"}
+
+SELECT AM.ASSETNUM,
+A.DESCRIPTION AS ASSET_DESC,
+AM.METERNAME ,
+M.DESCRIPTION METERDESCRIPTION,
+M.METERTYPE ,
+AM.AVGCALCMETHOD ,
+AM.ROLLDOWNSOURCE ,
+AM.REMARKS ,
+AM.POINTNUM ,
+AM.LASTREADING ,
+AM.LASTREADINGDATE AS LASTREADING_DATE,
+AM.CHANGEBY ,
+AM.LASTREADINGINSPCTR,
+CL.DESCRIPTION AS CLASS,
+LEFT(A.LOCATION,3) AS DEPT
+FROM MAXIMO.ASSETMETER AM JOIN MAXIMO.ASSET A ON AM.ASSETNUM = A.ASSETNUM
+JOIN MAXIMO.METER M ON AM.METERNAME = M.METERNAME
+LEFT JOIN MAXIMO.CLASSSTRUCTURE CL ON A.CLASSSTRUCTUREID = CL.CLASSSTRUCTUREID 
+WHERE A.SITEID = 'HMA' 
+
+## METER SQL PULL
+
+```{python}
+#| echo: false
+#| label: SQL-has-monitoring-meters
+
+# Start timing
+start_time = time.time()
+
+# Run the sql script
+has_mon_m = run_query_from_file('query/has_mon-meters.sql')
+
+# Calculate and print execution time
+execution_time = time.time() - start_time
+print(f"Query execution time: {execution_time:.2f} seconds \n")
+
+
+# Primary Conversions
+has_mon_m['METERTYPE'] = has_mon_m['METERTYPE'].astype('category')
+has_mon_m['ASSETNUM'] = has_mon_m['ASSETNUM'].astype('category')
+has_mon_m['METERNAME'] = has_mon_m['METERNAME'].astype('category')
+has_mon_m['LASTREADINGINSPCTR'] = has_mon_m['LASTREADINGINSPCTR'].astype('category')
+has_mon_m['AVGCALCMETHOD'] = has_mon_m['AVGCALCMETHOD'].astype('category')
+has_mon_m['POINTNUM'] = has_mon_m['POINTNUM'].astype('category')
+
+
+#Memory Usage
+print(f"Memory usage: {has_mon_m.memory_usage(deep=True).sum() / 1024**2:.2f} MB")
+
+
+has_mon_m.info()
+```
+```{python}
+#| echo: false
+#| label: meters-isolate-null
+
+# Isolate records with null LASTREADING_DATE
+has_mon_m_flagged = has_mon_m[has_mon_m['LASTREADING_DATE'].isna()].copy()
+
+print(f"Flagged records (null LASTREADING_DATE): {len(has_mon_m):,}")
+print(f"Percentage of total: {len(has_mon_m_flagged)/len(has_mon_m)*100:.1f}%")
+
+# Show sample of flagged records
+print("\nSample of flagged records:")
+has_mon_m_flagged.head()
+```
+
+```{python}
+
+```
 
 ## Connectable Databases {.smaller}
 
