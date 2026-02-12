@@ -42,7 +42,7 @@ import warnings
 import time       # for timing longer cells (running the sql query)
 import matplotlib.pyplot as plt
 import seaborn as sns
-from datetime import datetime
+from datetime import datetime,timedelta
 from IPython.display import Markdown
 ```
 
@@ -778,26 +778,6 @@ Three pathways converge: disconnected databases, connectable databases, and nati
 
 # PHASE III - HAS Monitoring (Meters) {background-color="#7c2d12"}
 
-SELECT AM.ASSETNUM,
-A.DESCRIPTION AS ASSET_DESC,
-AM.METERNAME ,
-M.DESCRIPTION METERDESCRIPTION,
-M.METERTYPE ,
-AM.AVGCALCMETHOD ,
-AM.ROLLDOWNSOURCE ,
-AM.REMARKS ,
-AM.POINTNUM ,
-AM.LASTREADING ,
-AM.LASTREADINGDATE AS LASTREADING_DATE,
-AM.CHANGEBY ,
-AM.LASTREADINGINSPCTR,
-CL.DESCRIPTION AS CLASS,
-LEFT(A.LOCATION,3) AS DEPT
-FROM MAXIMO.ASSETMETER AM JOIN MAXIMO.ASSET A ON AM.ASSETNUM = A.ASSETNUM
-JOIN MAXIMO.METER M ON AM.METERNAME = M.METERNAME
-LEFT JOIN MAXIMO.CLASSSTRUCTURE CL ON A.CLASSSTRUCTUREID = CL.CLASSSTRUCTUREID 
-WHERE A.SITEID = 'HMA' 
-
 ## METER SQL PULL
 
 ```{python}
@@ -830,6 +810,9 @@ print(f"Memory usage: {has_mon_m.memory_usage(deep=True).sum() / 1024**2:.2f} MB
 
 has_mon_m.info()
 ```
+
+## Isolate NULL Last Reading Date
+
 ```{python}
 #| echo: false
 #| label: meters-isolate-null
@@ -845,8 +828,149 @@ print("\nSample of flagged records:")
 has_mon_m_flagged.head()
 ```
 
-```{python}
+## Aggregate to Asset Level
 
+```{python}
+#| echo: false
+#| label: meters-aggregate-to-asset-level
+
+# Aggregate to ASSETNUM level
+has_mon_m_agg = has_mon_m.groupby('ASSETNUM', observed=False).agg({
+    'METERNAME': 'count',  # Count of meters
+    'LASTREADING_DATE': 'max',  # Most recent reading date
+    'ASSET_DESC': 'first',  # Get asset description (should be same for all records)
+    'CLASS': 'first',
+    'DEPT': 'first'
+}).reset_index()
+
+# Rename columns for clarity
+has_mon_m_agg.columns = ['ASSETNUM', 'METER_COUNT', 'MAX_LASTREADING_DATE', 'ASSET_DESC','DEPT','CLASS']
+
+print(f"Total unique assets: {len(has_mon_m_agg):,}")
+print(f"\nAggregated data sample:")
+has_mon_m_agg.head(10)
+```
+
+## Add 1 year Threshold
+
+```{python}
+#| echo: false
+#| label: meters-add-last-reading-in-a-year
+
+# Calculate date threshold (1 year ago from today)
+one_year_ago = datetime.now() - timedelta(days=365)
+print(f"One year ago threshold: {one_year_ago.date()}")
+
+# Add "Last Reading Within 1 Year" column
+has_mon_m_agg['READING_WITHIN_1YR'] = has_mon_m_agg['MAX_LASTREADING_DATE'].apply(
+    lambda x: 'Y' if pd.notna(x) and x >= one_year_ago else 'N'
+)
+
+# Count and display results
+reading_counts = has_mon_m_agg['READING_WITHIN_1YR'].value_counts()
+print(f"\nReading within 1 year distribution:")
+print(reading_counts)
+print(f"\nPercentage with recent readings: {reading_counts.get('Y', 0)/len(has_mon_m_agg)*100:.1f}%")
+
+has_mon_m_agg.head(10)
+```
+
+## Add HAS GM column
+
+```{python}
+#| echo: false
+#| label: meters-add-HAS_GM-col
+
+# HAS_GM is only 'Y' if READING_WITHIN_1YR is 'Y'
+# This follows the logic: "if this is Y... then another column (same calculation) HAS_GM = Y/N"
+has_mon_m_agg['HAS_GM'] = has_mon_m_agg['READING_WITHIN_1YR'].apply(
+    lambda x: 'Y' if x == 'Y' else 'N'
+)
+
+# Display results
+print("Distribution of HAS_GM:")
+print(has_mon_m_agg['HAS_GM'].value_counts())
+
+# Cross-tabulation to verify logic
+print("\nCross-tabulation (READING_WITHIN_1YR vs HAS_GM):")
+print(pd.crosstab(has_mon_m_agg['READING_WITHIN_1YR'], has_mon_m_agg['HAS_GM']))
+
+print("\nFinal aggregated data sample:")
+has_mon_m_agg.head(10)
+```
+
+## General Meters Summary Stats
+
+```{python}
+#| echo: false
+#| label: meters-summary-stats
+
+print("=" * 60)
+print("SUMMARY STATISTICS")
+print("=" * 60)
+
+print(f"\nTotal Assets: {len(has_mon_m_agg):,}")
+print(f"Total Meters: {has_mon_m_agg['METER_COUNT'].sum():,}")
+print(f"Average Meters per Asset: {has_mon_m_agg['METER_COUNT'].mean():.2f}")
+print(f"Median Meters per Asset: {has_mon_m_agg['METER_COUNT'].median():.0f}")
+print(f"Max Meters on Single Asset: {has_mon_m_agg['METER_COUNT'].max()}")
+
+print(f"\nAssets with Recent Readings (within 1 year): {(has_mon_m_agg['READING_WITHIN_1YR'] == 'Y').sum():,}")
+print(f"Assets with HAS_GM = Y: {(has_mon_m_agg['HAS_GM'] == 'Y').sum():,}")
+print(f"Assets with no recent readings: {(has_mon_m_agg['READING_WITHIN_1YR'] == 'N').sum():,}")
+
+print(f"\nAssets with null MAX_LASTREADING_DATE: {has_mon_m_agg['MAX_LASTREADING_DATE'].isna().sum():,}")
+```
+
+# PHASE IV -  HAS Merging
+
+## Combine Route and Meter Coverage
+```{python}
+#| echo: true
+#| label: merge-routes-meters-coverage
+
+# Drop asset attributes from both coverage tables (we'll get from asset_class)
+asset_route_coverage_slim = asset_route_coverage.drop(['ASSET_DESC', 'CLASS', 'DEPT'], axis=1)
+has_mon_m_agg_slim = has_mon_m_agg.drop(['ASSET_DESC', 'CLASS', 'DEPT'], axis=1)
+
+# Merge route and meter coverage (both are just ASSETNUM + flags now)
+has_monitoring_slim = asset_route_coverage_slim.merge(
+    has_mon_m_agg_slim[['ASSETNUM', 'HAS_GM', 'METER_COUNT', 'MAX_LASTREADING_DATE']],
+    on='ASSETNUM',
+    how='outer'
+)
+
+# Now merge with asset_class to get the authoritative asset attributes
+has_monitoring = has_monitoring_slim.merge(
+    asset_class,
+    on='ASSETNUM',
+    how='left'  # Left join because we want all monitored assets
+)
+
+# Fill NaN values with 'N' for technologies not present
+has_cols = [col for col in has_monitoring.columns if col.endswith('_HAS')]
+for col in has_cols:
+    has_monitoring[col] = has_monitoring[col].fillna('N')
+
+print(f"Total assets with monitoring: {len(has_monitoring):,}")
+print(f"Assets matched to asset master: {has_monitoring['ASSET_CLASS'].notna().sum():,}")
+print(f"Assets NOT in asset master: {has_monitoring['ASSET_CLASS'].isna().sum():,}")
+
+has_monitoring.head(10)
+```
+
+```{python}
+#| echo: true
+#| label: has-monitoring-summary
+
+# Summary statistics across all technologies
+print("\nHAS Monitoring Coverage Summary:")
+total = len(has_monitoring)
+for tech in tech_cols:
+    col = f'HAS_{tech}'
+    if col in has_monitoring.columns:
+        count = (has_monitoring[col] == 'Y').sum()
+        print(f"{tech}: {count:,} assets ({count/total*100:.1f}% of monitored assets)")
 ```
 
 ## Connectable Databases {.smaller}
