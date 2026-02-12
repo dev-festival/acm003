@@ -34,3 +34,5 @@ output/
 *.png
 *.pdf
 *.html
+/.quarto/
+**/*.quarto_ipynb

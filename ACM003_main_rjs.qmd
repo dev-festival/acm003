@@ -1,0 +1,994 @@
+---
+title: "AAP ACM Coverage to Standard"
+subtitle: "Implementation of Standards"
+author: "Mike"
+date: today
+format:
+  revealjs:
+    theme: [default]
+    slide-number: true
+    embed-resources: true
+    preview-links: auto
+    navigation-mode: linear
+    controls: true
+    progress: true
+    history: true
+    center: true
+    transition: slide
+    background-transition: fade
+    width: 1280
+    height: 720
+    incremental: false
+    smaller: true
+    scrollable: true
+    df-print: kable # or 'paged' or 'default'
+execute:
+  echo: false
+  warning: false
+---
+
+```{python}
+#| echo: false
+#| label: import-libraries
+
+import pandas as pd
+import numpy as np
+import os
+import pyodbc
+import re
+from dotenv import load_dotenv, find_dotenv
+from pathlib import Path
+import warnings
+import time       # for timing longer cells (running the sql query)
+import matplotlib.pyplot as plt
+import seaborn as sns
+from datetime import datetime
+from IPython.display import Markdown
+```
+
+```{python}
+#| echo: false
+#| label: ODBC-credentials
+
+# Automatically search for .env in parent directories
+load_dotenv(find_dotenv())
+
+# Load from environment variables
+DSN = os.getenv('MAXIMO_DSN')
+USER = os.getenv('MAXIMO_USER')
+PASSWORD = os.getenv('MAXIMO_PASS')
+
+#Confirm Credentials
+#print(f"DSN: {DSN}")
+#print(f"User: {USER}")
+```
+
+```{python}
+#| echo: false
+#| label: query-function
+
+# Suppress the pandas warning
+warnings.filterwarnings('ignore', category=UserWarning)
+
+def run_query_from_file(sql_path: str) -> pd.DataFrame:
+    conn = pyodbc.connect(f"DSN={DSN};UID={USER};PWD={PASSWORD}")
+    query = open(sql_path).read()
+    df = pd.read_sql(query, conn)
+    conn.close()
+    return df
+```
+
+# Phase 0 - Introduction {background-color="#1e3a8a"}
+
+## Project Overview {.smaller}
+
+Demonstrate implementation of standards from:
+
+::: {.columns}
+::: {.column width="60%"}
+- [MESD-ACM-0001](https://globalhonda.sharepoint.com/:w:/r/sites/gna00880-08-Reliability/Shared%20Documents/08-%20Reliability/04-ACM/00_Overall%20Documents/05_Frameworks/000%20-%20Standard%20for%20Tracking%20ACM%20Technology%20Application.docx?d=w9b9e0e5d7f2c4fdbb8f5ee2ce4919adb&csf=1&web=1&e=uMqNtS) - Standard for Tracking (Has Monitoring)
+- [Draft 001](https://globalhonda.sharepoint.com/:w:/r/sites/gna00880-08-Reliability/Shared%20Documents/08-%20Reliability/04-ACM/00_Overall%20Documents/05_Frameworks/001%20-%20Asset%20Condition%20Monitoring%20Technology%20Application%20Specification.docx?d=wb984d67b7b004337aa6b469a06190d85&csf=1&web=1&e=JHKuoG) - Technology Application (Needs Monitoring)
+
+
+**Goal:** Compare Coverage Needs vs Coverage Actuals
+:::
+
+:::{.column width ="40%"}
+```{mermaid}
+%%| label: mermaid-coverage-report
+
+%%| fig-width: 8
+flowchart LR
+    A[Has Monitoring] --> C[Coverage Report]
+    B[Needs Monitoring] --> C
+    
+    style A fill:#ffebee
+    style B fill:#e8f5e9
+    style C fill:#fff4e1
+```
+
+::: {.notes}
+Two-part analysis: what we NEED to monitor vs what we ARE monitoring
+:::
+
+:::
+
+:::
+
+{background-color="#6aca8eff"}
+
+## Technology Definitions 
+
+Technologies are defined in MESD-ACM-001 as: 
+
+```{python}
+#| echo: false
+#| label: technology-defitinitions
+#| tbl-cap: "Technology Codes and Definitions"
+
+tech_codes = pd.read_csv('data/st_tbl/techs_def.csv',
+                            dtype={'domain': 'category',
+                                    'tech_code': 'category'}
+                        )
+tech_cols = tech_codes['tech_code'].tolist()
+
+tech_codes
+```
+
+## Data Sources Overview
+
+1. **Has Monitoring:** Uses the MESD-ACM-001 Standard for how to pull that information
+    - Disconnected Database: `Maximo` ODBC connection to pull Routes & Meters for "Has Monitoring"
+    - Connected Database: `API` python connection
+    - Some databases are *Connectable* but do not have active connections yet
+2. **Needs Monitoring:** Uses the MESD-ACM-002 Standard for how to define what needs monitoring
+    - Asset Classes are pulled from `Maximo` using ODBC connection 
+    - Technologies are mapped to components from `comp_xref_tech.csv`
+    - Components are mapped to asset classes from `class_xref_comp.csv`
+
+
+# Phase I - Needs Monitoring {background-color="#15803d"}
+
+## Definition {.smaller}
+
+ What assets *should* have monitoring based on their class/components? 
+
+```{mermaid}
+%%| label: mermaid-monitoring-map
+
+flowchart LR
+COMPMAP[Component Map to Technology]
+CLASSMAP[Asset Class Mapped to Component]
+PYTHMERGE[Python Merge]
+OUTPUT[Needs Monitoring Map]
+
+COMPMAP --> PYTHMERGE
+CLASSMAP --> PYTHMERGE
+PYTHMERGE --> OUTPUT
+```
+
+
+## Needs Monitoring: Definition {.smaller}
+
+"Needs Monitoring" is determined by the asset's **class** and **components**.
+
+### Asset Class to Component Mapping {.smaller}
+
+The `class_xref_comp.csv` table cross-references:
+
+- **Asset Classes** (pulled from Maximo) 
+- **Components** that each class *should* have, list developed with RE's (inside MESD-ACM-002) [doc ref??]
+
+This establishes the expected component inventory for each asset type.
+
+**Example**: A "Pump" class should have components like:
+
+- Motor
+- Bearings
+- Coupling
+- Seal assembly
+
+## Mapping Logic
+
+1. **Start with Asset Class** (from Maximo)
+2. **Identify Required Components** (via `class_xref_comp.csv`)
+3. **Determine Required Technologies** (via `comp_xref_tech.csv`)
+4. **Result**: Boolean flags for which technologies this asset *needs*
+
+## Mapping Tables {.smaller}
+
+::: panel-tabset
+### Class → Component Map
+
+::: {style="max-height: 500px; overflow-y: auto; font-size: 0.55em;"}
+```{python}
+#| echo: false
+#| label: class-comp-read-in
+
+
+class_comp = pd.read_csv('data/st_tbl/class_xref_comp.csv',index_col = 0)
+class_comp
+```
+:::
+
+
+### Component → Tech Map
+
+P = Primary Technology
+
+S = Secondary Technology
+
+::: {style="max-height: 500px; overflow-y: auto; font-size: 0.55em;"}
+```{python}
+#| echo: false
+#| label: comp-tech-read-in
+
+
+comp_tech = pd.read_csv('data/st_tbl/comp_xref_tech.csv')
+comp_tech.style.set_table_attributes('style="max-height: 400px; overflow-y: scroll; display: block;"')
+```
+:::
+
+:::
+
+## Statistics So Far
+
+```{python}
+#| echo: false
+#| label: stats-so-far
+
+print(f"Asset classes: {len(class_comp)}")
+print(f"Components: {len(comp_tech)}")
+print(f"Technologies tracked: {tech_cols}")
+```
+
+
+```{python}
+#| echo: false
+#| label: needs-monitoring-function
+
+def get_asset_tech_needs(component_list, comp_tech_df, tech_cols, include_secondary=True):
+    """
+    Determine which technologies an asset NEEDS based on its components.
+    
+    Parameters:
+    -----------
+    component_list : list
+        List of component types for the asset
+    comp_tech_df : DataFrame
+        Component to technology mapping (comp_xref_tech.csv)
+    tech_cols : list
+        List of technology codes to check
+    include_secondary : bool
+        If True, include both P and S ratings. If False, only P ratings.
+    
+    Returns:
+    --------
+    dict : {'IR': 'P', 'VI': 'S', 'LU': 'N', ...}
+        Priority: P (Primary) > S (Secondary) > N (Not needed)
+    """
+    # Initialize all technologies as 'N' (not needed)
+    asset_needs = {tech: 'N' for tech in tech_cols}
+    
+    if not component_list or len(component_list) == 0:
+        return asset_needs
+    
+    # For each component, get its technology requirements
+    for component in component_list:
+        comp_row = comp_tech_df[comp_tech_df['Component Type'] == component]
+        
+        if comp_row.empty:
+            continue
+        
+        # Check each technology
+        for tech in tech_cols:
+            if tech not in comp_row.columns:
+                continue
+                
+            component_rating = comp_row[tech].iloc[0]
+            current_rating = asset_needs[tech]
+            
+            # Update if this component has higher priority
+            # Priority: P (Primary) > S (Secondary) > N
+            if component_rating == 'P':
+                asset_needs[tech] = 'P'
+            elif component_rating == 'S' and current_rating == 'N':
+                asset_needs[tech] = 'S'
+    
+    # If include_secondary is False, convert S to N (keep only Primary)
+    if not include_secondary:
+        asset_needs = {k: ('N' if v == 'S' else v) for k, v in asset_needs.items()}
+    
+    return asset_needs
+```
+
+```{python}
+#| echo: false
+#| label: build-needs-coverage
+
+# Build needs coverage for all asset classes
+needs_records = []
+
+for asset_class in class_comp.index:
+    # Get components for this asset class (where 'x' is marked)
+    components = []
+    for col in class_comp.columns:
+        if col == 'Asset_Count':
+            continue
+        if class_comp.loc[asset_class, col] == 'x':
+            components.append(col)
+    
+    # Get technology needs for this asset class
+    tech_needs = get_asset_tech_needs(components, comp_tech, tech_cols, include_secondary=True)
+    
+    # Build record
+    record = {'ASSETCLASS': asset_class}
+    for tech in tech_cols:
+        record[f'NEEDS_{tech}'] = tech_needs.get(tech, 'N')
+    
+    needs_records.append(record)
+
+# Create DataFrame
+needs_coverage = pd.DataFrame(needs_records)
+
+# Summary statistics
+print(f"\nTotal asset classes: {len(needs_coverage)}")
+print("\nTechnology needs distribution:")
+for tech in tech_cols:
+    col = f'NEEDS_{tech}'
+    if col in needs_coverage.columns:
+        p_count = (needs_coverage[col] == 'P').sum()
+        s_count = (needs_coverage[col] == 'S').sum()
+        print(f"  {tech}: {p_count} Primary, {s_count} Secondary")
+
+needs_coverage.head(10)
+
+```
+
+## Visualizing Technology Needs
+
+::: panel-tabset
+
+### Class by Component
+
+```{python}
+#| echo: false
+#| label: fig-top-classes
+#| fig-cap: "Top 15 Asset Classes by Number of Monitorable Components"
+
+
+# Count components per asset class (number of 'x' marks)
+class_comp['component_count'] = (class_comp.drop('Asset_Count', axis=1) == 'x').sum(axis=1)
+
+# Get top 15
+top_classes = class_comp.nlargest(15, 'component_count')[['component_count']].sort_values('component_count')
+
+# Plot
+fig, ax = plt.subplots(figsize=(10, 8))
+top_classes.plot(kind='barh', ax=ax, color='steelblue', legend=False)
+ax.set_xlabel('Number of Monitorable Components')
+ax.set_ylabel('Asset Class')
+ax.set_title('Top 15 Asset Classes by Component Count')
+ax.grid(axis='x', alpha=0.3)
+plt.tight_layout()
+plt.show()
+```
+
+### Technology Heatmap
+```{python}
+#| echo: false
+#| label: fig-component-tech-heatmap
+#| fig-cap: "Component Technology Requirements Heatmap"
+
+# Prepare data for heatmap
+# Convert P/S/- to numeric: P=2, S=1, -=0
+comp_tech_numeric = comp_tech.copy()
+comp_tech_numeric = comp_tech_numeric.set_index('Component Type')
+
+# Replace ratings with numeric values
+rating_map = {'P': 2, 'S': 1, '-': 0, np.nan: 0}
+for col in comp_tech_numeric.columns:
+    comp_tech_numeric[col] = comp_tech_numeric[col].map(rating_map).fillna(0)
+
+# Count technologies per component
+comp_tech_numeric['tech_count'] = (comp_tech_numeric > 0).sum(axis=1)
+
+# Create heatmap
+fig, ax = plt.subplots(figsize=(10, 12))
+sns.heatmap(
+    comp_tech_numeric.drop('tech_count', axis=1),
+    cmap=['#f0f0f0', '#ffeb99', '#4CAF50'],  # 0=gray, 1=yellow (S), 2=green (P)
+    cbar_kws={'label': 'Priority (0=None, 1=Secondary, 2=Primary)'},
+    linewidths=0.5,
+    linecolor='white',
+    ax=ax,
+    vmin=0,
+    vmax=2
+)
+ax.set_title('Component Technology Requirements\n(Green=Primary, Yellow=Secondary, Gray=None)')
+ax.set_xlabel('Technology Code')
+ax.set_ylabel('Component Type')
+plt.tight_layout()
+plt.show()
+
+# Also show top components by technology count
+print("\nTop 10 Components by Number of Technologies:")
+print(comp_tech_numeric.nlargest(10, 'tech_count')[['tech_count']])
+```
+
+### Technology Distribution
+```{python}
+#| echo: false  
+#| label: fig-tech-distribution
+#| fig-cap: "Technology Needs Distribution Across Asset Classes"
+
+# Count P and S ratings per technology
+tech_summary = []
+for tech in tech_cols:
+    col = f'NEEDS_{tech}'
+    if col in needs_coverage.columns:
+        p_count = (needs_coverage[col] == 'P').sum()
+        s_count = (needs_coverage[col] == 'S').sum()
+        tech_summary.append({
+            'Technology': tech,
+            'Primary': p_count,
+            'Secondary': s_count,
+            'Total': p_count + s_count
+        })
+
+tech_summary_df = pd.DataFrame(tech_summary)
+
+# Stacked bar chart
+fig, ax = plt.subplots(figsize=(10, 6))
+x = range(len(tech_summary_df))
+ax.bar(x, tech_summary_df['Primary'], label='Primary', color='#2e7d32')
+ax.bar(x, tech_summary_df['Secondary'], bottom=tech_summary_df['Primary'], 
+       label='Secondary', color='#81c784')
+
+ax.set_xticks(x)
+ax.set_xticklabels(tech_summary_df['Technology'])
+ax.set_ylabel('Number of Asset Classes')
+ax.set_xlabel('Technology Code')
+ax.set_title('Technology Needs Distribution (Primary vs Secondary)')
+ax.legend()
+ax.grid(axis='y', alpha=0.3)
+plt.tight_layout()
+plt.show()
+
+# Print summary table
+print("\nTechnology Needs Summary:")
+print(tech_summary_df.to_string(index=False))
+```
+:::
+
+## Data Architecture 
+
+```{mermaid}
+%%| label: mermaid-target-OUT
+%%| fig-width: 12
+flowchart LR
+    DB1[Disconnected DB]
+    DB2[Connectable DB]
+    NM[Native Maximo]
+    SQL1[SQL Routes]
+    SQL2[SQL Meters]
+    PY[Python Merge]
+    OUT[Monitored List]
+    
+    DB1 --> SQL1
+    DB2 --> SQL1
+    DB2 -. API .-> PY
+    NM --> SQL2
+    SQL1 --> PY
+    SQL2 --> PY
+    PY --> OUT
+    
+    class DB1,DB2,NM source
+    class SQL1,SQL2 query
+    class PY process
+    class OUT output
+    
+    classDef source fill:#e1f5ff
+    classDef query fill:#f3e5f5
+    classDef process fill:#e8f5e9
+    classDef output fill:#6aca8eff
+```
+
+::: {.notes}
+Three pathways converge: disconnected databases, connectable databases, and native Maximo meters
+:::
+
+# Route-Based Monitoring {background-color="#7c2d12"}
+
+## Connectable Databases {.smaller}
+
+::: {.columns}
+::: {.column width="60%"}
+
+```{mermaid}
+%%| label: mermaid-target-DB1
+%%| fig-width: 12
+flowchart LR
+    DB1[Disconnected DB]
+    DB2[Connectable DB]
+    NM[Native Maximo]
+    SQL1[SQL Routes]
+    SQL2[SQL Meters]
+    PY[Python Merge]
+    OUT[Monitored List]
+    
+    DB1 --> SQL1
+    DB2 --> SQL1
+    DB2 -. API .-> PY
+    NM --> SQL2
+    SQL1 --> PY
+    SQL2 --> PY
+    PY --> OUT
+    
+    class DB2,NM source
+    class SQL1,SQL2 query
+    class PY process
+    class OUT output
+    class DB1 target
+    
+    classDef source fill:#e1f5ff
+    classDef query fill:#f3e5f5
+    classDef process fill:#fff4e1
+    classDef output fill:#e8f5e9
+    classDef target fill:#fc8a7b,stroke:#b71c1c,stroke-width:3px,color:#ffffff
+```
+:::
+
+
+::: {.column width="40%"}
+**API-Enabled Systems**
+
+- Waites (Vibration)
+- Hydac (Lubrication)
+- FLUKE (IR/Other)
+- ZDT (Fanuc)
+
+:::
+:::
+
+::: {.aside}
+If API not available, use Disconnected Database approach
+:::
+
+## Disconnected Databases {.smaller}
+
+::: {.columns}
+::: {.column width="60%"}
+```{mermaid}
+%%| label: mermaid-target-DB2
+%%| fig-width: 12
+flowchart LR
+    DB1[Disconnected DB]
+    DB2[Connectable DB]
+    NM[Native Maximo]
+    SQL1[SQL Routes]
+    SQL2[SQL Meters]
+    PY[Python Merge]
+    OUT[Monitored List]
+    
+    DB1 --> SQL1
+    DB2 --> SQL1
+    DB2 -. API .-> PY
+    NM --> SQL2
+    SQL1 --> PY
+    SQL2 --> PY
+    PY --> OUT
+    
+    class DB1,NM source
+    class SQL1,SQL2 query
+    class PY process
+    class OUT output
+    class DB2 target
+    
+    classDef source fill:#e1f5ff
+    classDef query fill:#f3e5f5
+    classDef process fill:#fff4e1
+    classDef output fill:#e8f5e9
+    classDef target fill:#fc8a7b,stroke:#b71c1c,stroke-width:4px,color:#ffffff
+```
+:::
+
+::: {.column width="40%"}
+**Manual Route Coding**
+
+- FLIR (IR)
+- MOTION (Vibration)
+- ONTrak (Ultrasound)
+- AllTest (Motor Current)
+- LubeCon (Chain Monitoring)
+
+:::
+:::
+
+::: {.fragment}
+**Solution:** Standard naming conventions from MESD-ACM-0001
+:::
+
+## Route Naming Standard {.smaller}
+
+::: {.columns}
+::: {.column width="50%"}
+**Standard Convention** (from MESD-ACM-0001)
+
+![Standard Route Coding](/img/acm003_00.png)
+
+Format: `DEPT_TECH_VENDOR - Description`
+:::
+
+::: {.column width="50%"}
+**Maximo Examples**
+
+![Examples in Maximo](/img/acm003_01.png)
+
+::: {.fragment}
+Two underscores + space-space separator
+:::
+:::
+:::
+
+## SQL Routes Query {.smaller}
+
+```{mermaid}
+%%| label: has-monitoring-SQL-routes
+%%| fig-width: 12
+flowchart LR
+    DB1[Disconnected DB]
+    DB2[Connectable DB]
+    NM[Native Maximo]
+    SQL1[SQL Routes]
+    SQL2[SQL Meters]
+    PY[Python Merge]
+    OUT[Monitored List]
+    
+    DB1 --> SQL1
+    DB2 --> SQL1
+    DB2 -. API .-> PY
+    NM --> SQL2
+    SQL1 --> PY
+    SQL2 --> PY
+    PY --> OUT
+    
+    class DB2,DB1,NM source
+    class SQL1,SQL2 query
+    class PY process
+    class OUT output
+    class SQL1 target
+    
+    classDef source fill:#e1f5ff
+    classDef query fill:#f3e5f5
+    classDef process fill:#fff4e1
+    classDef output fill:#e8f5e9
+    classDef target fill:#fc8a7b,stroke:#b71c1c,stroke-width:4px,color:#ffffff
+```
+
+### Pattern Matching Logic
+
+```sql
+WHERE REGEXP_LIKE(ROUTE.DESCRIPTION, '^[A-Z0-9]+_[A-Z0-9]+_[A-Z0-9]+ - .+') 
+```
+
+Matches: **THREE_PART_CODE - Some text description**
+
+
+::: {.aside}
+Can be used in Maximo WHERE clause for saved queries
+:::
+
+## Complete Routes Query {.smaller .scrollable}
+
+```{python}
+#| echo: false
+#| output: asis
+#| label: routes-query
+
+import os
+
+data_dir = r"C:\Users\VF033899\AppData\Roaming\DBeaverData\workspace6\General\Scripts\maximo-sql-scripts\scripts\projects\102ki-acm-2026"
+
+try:
+    with open(os.path.join(data_dir, "acm_assets_routes-coverage.sql"), 'r') as f:
+        print(f"```sql\n{f.read()}\n```")
+except FileNotFoundError:
+    print("```sql\n-- SQL file not found in presentation environment\n-- See documentation for full query\n```")
+```
+
+## Routes Query Output {.smaller}
+
+![DBeaver SQL Routes Output](/img/acm003_08.png)
+
+::: {.fragment}
+**Next Steps:** Transform into Technology & Vendor columns
+:::
+
+## Routes Transformation {auto-animate=true}
+
+### Raw Output → Tech-Vendor Detail
+
+![Tech-Vendor Detail](/img/acm003_10.png)
+
+## Routes Transformation {auto-animate=true}
+
+### Tech-Vendor Detail → Coverage Summary
+
+![Coverage Summary](/img/acm003_09.png)
+
+::: {.fragment}
+Pivot to show each asset's technology coverage (Y/N flags)
+:::
+
+---
+
+# Routes Coverage Analytics {background-color="#4c1d95"}
+
+## {background-image=".\img\acm003_11.png" background-size="contain"}
+
+::: {.notes}
+Technology Coverage by Department
+:::
+
+## {background-image=".\img\acm003_12.png" background-size="contain"}
+
+::: {.notes}
+Flip perspective: how departments are covered across technologies
+:::
+
+---
+
+# Meter-Based Monitoring {background-color="#0c4a6e"}
+
+## Native Maximo Approach {.smaller}
+
+::: {.columns}
+::: {.column width="50%"}
+![Native Maximo Flow](/img/acm003_06.png)
+:::
+
+::: {.column width="50%"}
+**Direct Meter Records**
+
+::: {.incremental}
+- Readings stored in Maximo
+- Direct SQL access
+- Simpler than route parsing
+- Native asset linkage
+:::
+:::
+:::
+
+## SQL Meters Query {.smaller}
+
+![SQL Meters Flow](/img/acm003_07.png)
+
+**Extract:** Meter Name, Last Reading Date, Asset Number
+
+## Complete Meters Query {.smaller .scrollable}
+
+```{python}
+#| echo: false
+#| output: asis
+#| label: meters-query
+
+import os
+
+data_dir = r"C:\Users\VF033899\AppData\Roaming\DBeaverData\workspace6\General\Scripts\maximo-sql-scripts\scripts\projects\102ki-acm-2026"
+
+try:
+    with open(os.path.join(data_dir, "acm_assets_meters-coverage.sql"), 'r') as f:
+        print(f"```sql\n{f.read()}\n```")
+except FileNotFoundError:
+    print("```sql\n-- SQL file not found in presentation environment\n-- See documentation for full query\n```")
+```
+
+## Meters Query Results {.smaller}
+
+![Meters Coverage Raw](/img/acm003_13.png)
+
+::: {.fragment}
+**Scale:** 24,091 meters applied to 8,223 assets
+:::
+
+## Data Quality Assessment {.smaller}
+
+### Three Key Questions
+
+::: {.incremental}
+1. Which meters are **active**?
+2. How many meters per asset?
+3. Does asset qualify as "Has General Metering"?
+:::
+
+## Missing Data Analysis {.smaller .scrollable}
+
+| Field | Missing Count | Percentage |
+|-------|--------------|------------|
+| ASSETNUM | 0 | 0.00% |
+| METERNAME | 0 | 0.00% |
+| METERTYPE | 0 | 0.00% |
+| AVGCALCMETHOD | 19,488 | 80.89% |
+| ROLLDOWNSOURCE | 19,570 | 81.23% |
+| POINTNUM | 15,171 | 62.97% |
+| **LASTREADING** | **5,679** | **23.57%** |
+| LASTREADING_DATE | 5,568 | 23.11% |
+
+::: {.fragment}
+**Key Finding:** ~23% of meters have no reading date
+:::
+
+::: {.notes}
+Available for investigation: meters_flagged_null_readings.csv
+:::
+
+## Activity Threshold Decision {.smaller}
+
+**Question:** How old can last reading be before asset loses coverage?
+
+::: {.fragment}
+```{mermaid}
+%%| fig-width: 8
+flowchart LR
+    A{Within 1 Year?}
+    A -->|Yes| B[Has General Meter - Y]
+    A -->|No| C[None - N]
+    
+    style B fill:#e8f5e9
+    style C fill:#ffebee
+```
+:::
+
+::: {.fragment}
+**Decision:** 1-year threshold for active monitoring
+:::
+
+## Asset-Level Aggregation {.smaller}
+
+![Meter Count Aggregated to Asset](/img/acm003_14.png)
+
+::: {.incremental}
+- **Count** of meters per asset
+- **Max** last reading date
+- Basis for coverage flag
+:::
+
+## Coverage Classification {.smaller}
+
+![HAS_GM Column Added](/img/acm003_15.png)
+
+::: {.columns}
+::: {.column width="50%"}
+**New Columns**
+
+- `READING_WITHIN_1YR`
+- `HAS_GM` (Y/N flag)
+:::
+
+::: {.column width="50%"}
+::: {.fragment}
+**Logic:** If max reading within 1 year → Y, else N
+:::
+:::
+:::
+
+---
+
+# Data Integration {background-color="#831843"}
+
+## Python Merge Strategy {.smaller}
+
+::: {.callout-important}
+## Documentation In Progress
+Detailed merge logic being finalized
+:::
+
+::: {.fragment}
+**Approach:** Pre-aggregation merge using asset master as single source of truth
+:::
+
+## Initial Coverage Results {.smaller}
+
+| Technology | Coverage | Percentage |
+|-----------|----------|------------|
+| **GM** (General Metering) | 5,005 assets | 60.9% |
+| **IR** (Infrared) | 360 assets | 4.4% |
+| **UL** (Ultrasound) | 207 assets | 2.5% |
+| **VI** (Vibration) | 345 assets | 4.2% |
+| **LU** (Lubrication) | 131 assets | 1.6% |
+| **MC** (Motor Circuit) | 0 assets | 0.0% |
+| **ZD** (Zero Defect) | 86 assets | 1.0% |
+
+::: {.fragment}
+**Total Asset Base:** ~8,200 assets
+:::
+
+---
+
+# Needs Monitoring {background-color="#713f12"}
+
+## The Complexity Challenge {.smaller}
+
+::: {.incremental}
+- Each technology monitors specific **components**
+- Each technology targets specific **failure modes**
+- Maximo lacks **component-level granularity**
+- Need systematic mapping approach
+:::
+
+## Solution: Component Mapping {.smaller}
+
+**Reference:** Draft 001 - ACM Technology Application (Table 2)
+
+::: {.fragment}
+**Legend:**
+- **P** = Primary application
+- **S** = Secondary application
+:::
+
+## Component to Technology Map {.smaller .scrollable}
+
+```{python}
+#| echo: false
+#| label: component-map
+#| tbl-cap: Component to Technology Map
+
+import pandas as pd
+
+data_dir = r"C:\Users\VF033899\AppData\Roaming\DBeaverData\workspace6\General\Scripts\maximo-sql-scripts\scripts\projects\102ki-acm-2026"
+
+try:
+    component_map = pd.read_csv(f"{data_dir}/component_map.csv")
+    component_map.style.hide(axis='index')
+except FileNotFoundError:
+    # Create sample structure if file not found
+    sample_data = {
+        'Component': ['Bearings', 'Motors', 'Gearboxes', 'Hydraulics'],
+        'VI': ['P', 'P', 'P', 'S'],
+        'IR': ['S', 'P', 'S', 'P'],
+        'UL': ['P', 'S', 'S', 'P'],
+        'LU': ['P', 'S', 'P', 'S']
+    }
+    pd.DataFrame(sample_data).style.hide(axis='index')
+```
+
+---
+
+# Next Steps {background-color="#1e3a8a"}
+
+## Coverage Gap Analysis {.smaller}
+
+::: {.incremental}
+1. Map asset types to required technologies
+2. Compare needs vs actual coverage
+3. Identify critical monitoring gaps
+4. Prioritize implementation plan
+:::
+
+## Documentation & Resources {.smaller}
+
+::: {.columns}
+::: {.column width="50%"}
+**Related Resources**
+- MESD-ACM-0001 Standard
+- Draft 001 Tech Specification
+- SQL query repository
+- Python merge scripts
+:::
+
+::: {.column width="50%"}
+**Key Contacts**
+- Stakeholder: [TBD]
+- Team Members: [TBD]
+- Technical Support: [TBD]
+:::
+:::
+
+---
+
+# Questions? {background-color="#1e3a8a"}
+
+## Thank You
+
+**Feedback & Discussion**
