@@ -36,3 +36,6 @@ output/
 *.html
 /.quarto/
 **/*.quarto_ipynb
+
+#Stack Dump
+bash.exe.stackdump
