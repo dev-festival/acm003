@@ -948,7 +948,7 @@ has_monitoring = has_monitoring_slim.merge(
 )
 
 # Fill NaN values with 'N' for technologies not present
-has_cols = [col for col in has_monitoring.columns if col.endswith('_HAS')]
+has_cols = [col for col in has_monitoring.columns if col.startswith('HAS_')]
 for col in has_cols:
     has_monitoring[col] = has_monitoring[col].fillna('N')
 
@@ -971,6 +971,64 @@ for tech in tech_cols:
     if col in has_monitoring.columns:
         count = (has_monitoring[col] == 'Y').sum()
         print(f"{tech}: {count:,} assets ({count/total*100:.1f}% of monitored assets)")
+```
+
+# PHASE V - Coverage Report: Needs vs Has
+
+```{python}
+#| echo: false
+#| label: merge-needs-has-coverage
+
+# Merge needs with has monitoring
+coverage_report = has_monitoring.merge(
+    assets_with_needs[['ASSETNUM'] + [col for col in assets_with_needs.columns if col.startswith('NEEDS_')]],
+    on='ASSETNUM',
+    how='outer'
+)
+
+# Fill any missing NEEDS or HAS flags with 'N'
+for col in coverage_report.columns:
+    if col.startswith('NEEDS_') or col.endswith('_HAS'):
+        coverage_report[col] = coverage_report[col].fillna('N')
+
+print(f"Total assets in coverage report: {len(coverage_report):,}")
+coverage_report.head(10)
+```
+
+## Coverage Judgment Logic
+```{python}
+#| echo: true
+#| label: calculate-coverage-judgment
+
+# Create judgment columns for each technology
+for tech in tech_cols:
+    needs_col = f'NEEDS_{tech}'
+    has_col = f'HAS_{tech}'  # Consistent naming for all technologies
+    judge_col = f'{tech}_JUDGE'
+    
+    # Apply judgment logic
+    # 0 = Critical gap (Primary need not met)
+    # 1 = Acceptable (all other cases)
+    coverage_report[judge_col] = coverage_report.apply(
+        lambda row: 0 if (row[needs_col] == 'P' and row[has_col] == 'N') else 1,
+        axis=1
+    )
+
+# Create MASTER_JUDGE: 0 if ANY technology has a critical gap, else 1
+judge_cols = [f'{tech}_JUDGE' for tech in tech_cols]
+coverage_report['MASTER_JUDGE'] = coverage_report[judge_cols].min(axis=1)
+
+# Summary statistics
+print("Coverage Judgment Summary:")
+print(f"Assets with FULL compliance (MASTER_JUDGE = 1): {(coverage_report['MASTER_JUDGE'] == 1).sum():,}")
+print(f"Assets with critical gaps (MASTER_JUDGE = 0): {(coverage_report['MASTER_JUDGE'] == 0).sum():,}")
+print(f"\nCritical gaps by technology (Primary need not met):")
+for tech in tech_cols:
+    gap_count = (coverage_report[f'{tech}_JUDGE'] == 0).sum()
+    if gap_count > 0:
+        print(f"  {tech}: {gap_count:,} assets")
+
+coverage_report.head(10)
 ```
 
 ## Connectable Databases {.smaller}
