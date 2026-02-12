@@ -17,7 +17,7 @@ format:
     transition: slide
     background-transition: fade
     width: 1280
-    height: 720
+    height: 1080
     incremental: false
     smaller: true
     scrollable: true
@@ -461,6 +461,124 @@ print(tech_summary_df.to_string(index=False))
 ```
 :::
 
+
+## ASSET SQL PULL
+
+```{python}
+#| echo: false
+#| label: SQL-asset-class
+
+# Start timing
+start_time = time.time()
+
+# Run the sql script
+asset_class = run_query_from_file('query/asset-classes.sql')
+
+# Calculate and print execution time
+execution_time = time.time() - start_time
+print(f"Query execution time: {execution_time:.2f} seconds \n")
+
+asset_class['ASSETNUM'] = asset_class['ASSETNUM'].astype('category')
+asset_class['ASSET_DESC'] = asset_class['ASSET_DESC'].astype('category')
+asset_class['ASSET_CLASS'] = asset_class['ASSET_CLASS'].astype('category')
+asset_class['ASSET_DEPT'] = asset_class['ASSET_DEPT'].astype('category')
+
+asset_class.info()
+```
+
+## Merging Needs Coverage with Asset Data
+```{python}
+#| echo: false
+#| label: merge-needs-with-assets
+
+# Merge needs coverage with actual assets
+assets_with_needs = asset_class.merge(
+    needs_coverage,
+    left_on='ASSET_CLASS',
+    right_on='ASSETCLASS',
+    how='left'
+)
+
+# Fill NaN values (asset classes not in needs coverage) with 'N'
+needs_cols = [col for col in assets_with_needs.columns if col.startswith('NEEDS_')]
+for col in needs_cols:
+    assets_with_needs[col] = assets_with_needs[col].fillna('N')
+
+print(f"Total assets: {len(assets_with_needs):,}")
+print(f"Asset classes with defined needs: {assets_with_needs['ASSETCLASS'].notna().sum():,}")
+print(f"Asset classes without defined needs: {assets_with_needs['ASSETCLASS'].isna().sum():,}")
+
+assets_with_needs.head()
+```
+
+## Needs by Department
+
+```{python}
+#| echo: false
+#| label: needs-by-department
+
+# Summary by department - count assets that NEED each technology (P or S)
+dept_needs_summary = []
+
+for dept in sorted(assets_with_needs['ASSET_DEPT'].unique()):
+    dept_assets = assets_with_needs[assets_with_needs['ASSET_DEPT'] == dept]
+    
+    record = {
+        'Department': dept,
+        'Total_Assets': len(dept_assets)
+    }
+    
+    # Count assets needing each technology (Primary or Secondary)
+    for tech in tech_cols:
+        col = f'NEEDS_{tech}'
+        if col in dept_assets.columns:
+            needs_count = ((dept_assets[col] == 'P') | (dept_assets[col] == 'S')).sum()
+            record[f'{tech}_Needs'] = needs_count
+    
+    dept_needs_summary.append(record)
+
+dept_needs_df = pd.DataFrame(dept_needs_summary)
+
+print("\nAssets Needing Monitoring by Department:")
+print(dept_needs_df.to_string(index=False))
+```
+
+## Needs by Department - Primary Only
+
+```{python}
+#| echo: false
+#| label: needs-by-dept-primary-only
+
+# Alternative view: PRIMARY needs only
+dept_needs_primary = []
+
+for dept in sorted(assets_with_needs['ASSET_DEPT'].unique()):
+    dept_assets = assets_with_needs[assets_with_needs['ASSET_DEPT'] == dept]
+    
+    record = {
+        'Department': dept,
+        'Total_Assets': len(dept_assets)
+    }
+    
+    # Count assets with PRIMARY needs only
+    for tech in tech_cols:
+        col = f'NEEDS_{tech}'
+        if col in dept_assets.columns:
+            primary_count = (dept_assets[col] == 'P').sum()
+            record[f'{tech}_Primary'] = primary_count
+    
+    dept_needs_primary.append(record)
+
+dept_primary_df = pd.DataFrame(dept_needs_primary)
+
+print("\nAssets with PRIMARY Technology Needs by Department:")
+print(dept_primary_df.to_string(index=False))
+```
+
+
+
+# Route-Based Monitoring {background-color="#7c2d12"}
+
 ## Data Architecture 
 
 ```{mermaid}
@@ -498,7 +616,6 @@ flowchart LR
 Three pathways converge: disconnected databases, connectable databases, and native Maximo meters
 :::
 
-# Route-Based Monitoring {background-color="#7c2d12"}
 
 ## Connectable Databases {.smaller}
 
