@@ -36,6 +36,7 @@ output/
 *.html
 /.quarto/
 **/*.quarto_ipynb
+!data/coverage_report.pkl
 
 #Stack Dump
 bash.exe.stackdump
