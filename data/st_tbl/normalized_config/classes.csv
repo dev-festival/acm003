@@ -1,0 +1,130 @@
+class_id,class_name
+1,Actuator
+2,Agitator
+3,Air Conditioner
+4,Auto Tool Changer
+5,Automated Guided
+6,Automated Lifts
+7,Automation Equipment
+8,Boiler
+9,Booth
+10,Brake
+11,Building
+12,Car - Vehicle
+13,Carrier
+14,Cart
+15,Chain Conveyor
+16,Chiller
+17,Clarifier
+18,Cleaning
+19,Compactor and Bailer
+20,Compresser
+21,Conditioner
+22,Conveyor
+23,Cookers
+24,Cooling Tower
+25,Dampener
+26,Dent Puller
+27,Device
+28,Die
+29,Dispensers
+30,Dock Locks
+31,Doors
+32,Drill
+33,Drive Unit
+34,Drop Lifts
+35,Dynometer
+36,Electrical
+37,Elevator
+38,Fan
+39,Fastening
+40,Feeder
+41,Filter Press
+42,Filtration
+43,Fire Protection Alarms
+44,Fire Suppression
+45,Fixture
+46,Fixture Mount
+47,Food Processors
+48,Forklift
+49,Forming
+50,Fountain
+51,Friction Conveyor
+52,Furnace
+53,Generator
+54,Grinder
+55,Grounds
+56,Guard
+57,HANDHELD
+58,HVAC
+59,Head Assembly
+60,Heat Exchanger
+61,Heat Treatment
+62,Heater
+63,Hone
+64,Human Machine Interface
+65,Instrumentation
+66,Jig
+67,Laser Etching
+68,Lathe
+69,Lighting
+70,Linebore
+71,Locks
+72,Lubrication
+73,MECHANICAL \ FAN \ BELT DRIVEN FAN
+74,Manipulator
+75,Manually Operated Lifts
+76,Marking System
+77,Material Handling
+78,Measurement and Gauging
+79,Mechanical
+80,Mill
+81,Mixers
+82,Module
+83,Mold
+84,Motor
+85,Motor Control Center
+86,Not In List
+87,Nutrunner
+88,Oven
+89,Overhead Lifts
+90,Painting
+91,Pallet
+92,Pallet Conveyor
+93,Panel
+94,Personal Computer
+95,Pipes
+96,Piping and Valving
+97,Pits
+98,Plumbing Fixtures
+99,Positioner
+100,Power Distribution
+101,Power Tool
+102,Press
+103,Pumps
+104,ROBOT TRANSFER UNIT (RTU)
+105,Rack
+106,Rails
+107,Refrigeration
+108,Robot
+109,SPOT WELDER
+110,Safety Station
+111,Safety Systems
+112,Saw
+113,Seals
+114,Shuttle
+115,Stocker
+116,Stopper
+117,Storage
+118,Structures
+119,Tanks
+120,Tip Dresser
+121,Tooling
+122,Torch
+123,Transferring and Conveying
+124,Transfers
+125,Valve
+126,Variable Frequency Drive
+127,Visual-Camera-Video
+128,Water Treatment
+129,Welder

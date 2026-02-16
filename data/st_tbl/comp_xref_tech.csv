@@ -1,0 +1,26 @@
+Component Type,IR,LU,VI,UL,MC,ZD,CH,GM
+Electric Motors - Bearings,S,-,P,S,S,-,-,-
+Electric Motors - Elecrical Comps,S,-,S,S,P,-,-,-
+Rolling Element Bearings (Oil),-,P,P,S,-,-,-,-
+Rolling Element Bearings (Grease),-,-,P,P,-,-,-,-
+Gearboxes / Speed Reducers,S,P,-,S,-,-,-,S
+Belt Drives,-,-,P,-,-,-,-,-
+Chain Drives,-,-,P,S,-,-,P,-
+Chain Links,-,-,-,-,-,-,P,-
+Couplings,S,-,P,-,-,-,-,-
+Pumps,S,P,P,S,S,-,-,-
+Fans / Blowers,S,-,P,-,P,-,-,S
+Compressors (Rotary Screw),-,-,-,-,-,-,-,-
+Compressors (Reciprocating),S,P,-,S,-,-,-,-
+Linear Rails,-,-,P,-,-,-,-,-
+Hydraulic Power Units,S,P,P,S,-,-,-,P
+Hydraulic Cylinders/Actuators,-,P,-,S,-,-,-,-
+Pneumatic Systems,-,-,-,P,-,-,-,S
+Electrical Connections/Terminations,P,-,-,S,-,-,-,-
+Electrical Distribution (Switchgear/MCCs),P,-,-,S,-,-,-,S
+Transformers,P,-,-,S,-,-,-,S
+Steam Traps,-,-,-,-,-,-,-,-
+Compressed Air Distribution,-,-,-,P,-,-,-,P
+FANUC Industrial Robots,-,-,S,-,-,P,-,S
+Process Heat Exchangers,P,-,-,S,-,-,-,P
+Machine Tool Spindles,-,P,-,-,-,-,-,S

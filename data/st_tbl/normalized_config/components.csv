@@ -1,0 +1,26 @@
+component_id,component_name
+1,Electric Motors - Bearings
+2,Electric Motors - Elecrical Comps
+3,Rolling Element Bearings (Oil)
+4,Rolling Element Bearings (Grease)
+5,Gearboxes / Speed Reducers
+6,Belt Drives
+7,Chain Drives
+8,Chain Links
+9,Couplings
+10,Pumps
+11,Fans / Blowers
+12,Compressors (Rotary Screw)
+13,Compressors (Reciprocating)
+14,Linear Rails
+15,Hydraulic Power Units
+16,Hydraulic Cylinders/Actuators
+17,Pneumatic Systems
+18,Electrical Connections/Terminations
+19,Electrical Distribution (Switchgear/MCCs)
+20,Transformers
+21,Steam Traps
+22,Compressed Air Distribution
+23,FANUC Industrial Robots
+24,Process Heat Exchangers
+25,Machine Tool Spindles

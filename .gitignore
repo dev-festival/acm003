@@ -28,7 +28,6 @@ Thumbs.db
 
 # Exports
 output/
-*.csv
 *.xlsx
 *.pkl
 *.png
