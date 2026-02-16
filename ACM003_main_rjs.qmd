@@ -33,6 +33,7 @@ execute:
 
 import pandas as pd
 import numpy as np
+import sys
 import os
 import pyodbc
 import re
@@ -46,6 +47,14 @@ from datetime import datetime,timedelta
 from IPython.display import Markdown
 ```
 
+DB Secondary : MAS PROD  
+   Server name        : ahmplaw2masdb02.aws.honda.com	
+   Port number        : 51046	
+   Authentication   : SERVER_ENCRYPT	
+   Database name : MASDBPRD	
+USERID : masro
+Password : Stew@506
+
 ```{python}
 #| echo: false
 #| label: ODBC-credentials
@@ -58,9 +67,13 @@ DSN = os.getenv('MAXIMO_DSN')
 USER = os.getenv('MAXIMO_USER')
 PASSWORD = os.getenv('MAXIMO_PASS')
 
+DSN = 'MAS9'
+USER = 'masro'
+PASSWORD = 'Stew@506' 
+
 #Confirm Credentials
-#print(f"DSN: {DSN}")
-#print(f"User: {USER}")
+print(f"DSN: {DSN}")
+print(f"User: {USER}")
 ```
 
 ```{python}
@@ -123,7 +136,7 @@ Technologies are defined in MESD-ACM-001 as:
 
 ```{python}
 #| echo: false
-#| label: technology-defitinitions
+#| label: OLD-technology-defitinitions
 #| tbl-cap: "Technology Codes and Definitions"
 
 tech_codes = pd.read_csv('data/st_tbl/techs_def.csv',
@@ -134,6 +147,8 @@ tech_cols = tech_codes['tech_code'].tolist()
 
 tech_codes
 ```
+
+
 
 ## Data Sources Overview
 
@@ -148,6 +163,118 @@ tech_codes
 
 
 # Phase I - Needs Monitoring {background-color="#15803d"}
+
+```{python}
+#| label: build-needs-coverage
+
+# Load normalized config files directly
+config_dir = 'data/st_tbl/normalized_config'
+
+config = {
+    'components': pd.read_csv(f'{config_dir}/components.csv'),
+    'technologies': pd.read_csv(f'{config_dir}/technologies.csv'),
+    'classes': pd.read_csv(f'{config_dir}/classes.csv'),
+    'component_technology': pd.read_csv(f'{config_dir}/component_technology.csv'),
+    'class_component': pd.read_csv(f'{config_dir}/class_component.csv')
+}
+
+# Build needs coverage
+needs_coverage = (
+    config['class_component']
+    .merge(config['classes'][['class_id', 'class_name']], on='class_id')
+    .merge(config['component_technology'][['component_id', 'technology_code', 'application_type']], on='component_id')
+    .merge(config['components'][['component_id', 'component_name']], on='component_id')
+    [['class_name', 'component_name', 'technology_code', 'application_type']]
+    .rename(columns={'class_name': 'ASSET_CLASS', 'technology_code': 'TECH'})  # Match your SQL column name
+)
+
+print(f"✓ Built needs coverage: {len(needs_coverage)} class-component-technology mappings")
+```
+
+```{python}
+#| label: create-tech-cols
+
+tech_cols = config['technologies']['technology_code'].unique().tolist()
+
+
+print(f"✓ Working with: {tech_cols}")
+```
+
+```{python}
+#| label: create-needs-flags
+
+# NEEDS flags: Only Primary applications
+needs_primary = needs_coverage[needs_coverage['application_type'] == 'Primary'].copy()
+
+class_tech_needs = (
+    needs_primary[['ASSET_CLASS', 'TECH']]
+    .drop_duplicates()
+)
+
+# Pivot to NEEDS_IR, NEEDS_VI, etc.
+tech_needs_wide = (
+    class_tech_needs
+    .assign(value='Y')
+    .pivot_table(
+        index='ASSET_CLASS',
+        columns='TECH',
+        values='value',
+        fill_value='N',
+        aggfunc='first'
+    )
+    .add_prefix('NEEDS_')
+    .reset_index()
+)
+
+# Ensure all expected technologies exist (even if not in config yet)
+for tech in tech_cols:
+    col_name = f'NEEDS_{tech}'
+    if col_name not in tech_needs_wide.columns:
+        tech_needs_wide[col_name] = 'N'
+        print(f"⚠️  Added missing column: {col_name} (not configured yet)")
+
+print(f"✓ Created NEEDS flags for {len(tech_needs_wide.columns)-1} technologies")
+print(f"✓ Based on PRIMARY applications only")
+tech_needs_wide.head()
+```
+
+```{python}
+#| label: create-use-flags
+
+# USE flags: Both Primary AND Secondary applications
+class_tech_use = (
+    needs_coverage[['ASSET_CLASS', 'TECH']]
+    .drop_duplicates()
+)
+
+# Pivot to USE_IR, USE_VI, etc.
+tech_use_wide = (
+    class_tech_use
+    .assign(value='Y')
+    .pivot_table(
+        index='ASSET_CLASS',
+        columns='TECH',
+        values='value',
+        fill_value='N',
+        aggfunc='first'
+    )
+    .add_prefix('USE_')
+    .reset_index()
+)
+
+# Ensure all expected technologies exist
+
+for tech in tech_cols:
+    col_name = f'USE_{tech}'
+    if col_name not in tech_use_wide.columns:
+        tech_use_wide[col_name] = 'N'
+        print(f"⚠️  Added missing column: {col_name} (not configured yet)")
+
+print(f"✓ Created USE flags for {len(tech_use_wide.columns)-1} technologies")
+print(f"✓ Based on PRIMARY + SECONDARY applications")
+tech_use_wide.head()
+
+```
 
 ## Definition {.smaller}
 
@@ -203,7 +330,7 @@ This establishes the expected component inventory for each asset type.
 ::: {style="max-height: 500px; overflow-y: auto; font-size: 0.55em;"}
 ```{python}
 #| echo: false
-#| label: class-comp-read-in
+#| label: OLD-class-comp-read-in
 
 
 class_comp = pd.read_csv('data/st_tbl/class_xref_comp.csv',index_col = 0)
@@ -221,7 +348,7 @@ S = Secondary Technology
 ::: {style="max-height: 500px; overflow-y: auto; font-size: 0.55em;"}
 ```{python}
 #| echo: false
-#| label: comp-tech-read-in
+#| label: OLD-comp-tech-read-in
 
 
 comp_tech = pd.read_csv('data/st_tbl/comp_xref_tech.csv')
@@ -235,17 +362,16 @@ comp_tech.style.set_table_attributes('style="max-height: 400px; overflow-y: scro
 
 ```{python}
 #| echo: false
-#| label: stats-so-far
+#| label: OLD-stats-so-far
 
 print(f"Asset classes: {len(class_comp)}")
 print(f"Components: {len(comp_tech)}")
 print(f"Technologies tracked: {tech_cols}")
 ```
 
-
 ```{python}
 #| echo: false
-#| label: needs-monitoring-function
+#| label: OLD-needs-monitoring-function
 
 def get_asset_tech_needs(component_list, comp_tech_df, tech_cols, include_secondary=True):
     """
@@ -304,7 +430,7 @@ def get_asset_tech_needs(component_list, comp_tech_df, tech_cols, include_second
 
 ```{python}
 #| echo: false
-#| label: build-needs-coverage
+#| label: OLD-build-needs-coverage
 
 # Build needs coverage for all asset classes
 needs_records = []
@@ -347,7 +473,7 @@ needs_coverage.info()
 
 ```{python}
 #| echo: false
-#| label: output-needs-coverage
+#| label: OLD-output-needs-coverage
 
 # Save final coverage report
 needs_coverage.to_pickle('data/needs_coverage.pkl')
@@ -357,122 +483,6 @@ print(f"\nSaved needs coverage report:")
 print(f"  - data/needs_coverage.pkl ({len(needs_coverage):,} asset classes)")
 print(f"  - output/needs_coverage.csv")
 ```
-
-## Visualizing Technology Needs
-
-::: panel-tabset
-
-### Class by Component
-
-```{python}
-#| echo: false
-#| label: fig-top-classes
-#| fig-cap: "Top 15 Asset Classes by Number of Monitorable Components"
-
-
-# Count components per asset class (number of 'x' marks)
-class_comp['component_count'] = (class_comp.drop('Asset_Count', axis=1) == 'x').sum(axis=1)
-
-# Get top 15
-top_classes = class_comp.nlargest(15, 'component_count')[['component_count']].sort_values('component_count')
-
-# Plot
-fig, ax = plt.subplots(figsize=(10, 8))
-top_classes.plot(kind='barh', ax=ax, color='steelblue', legend=False)
-ax.set_xlabel('Number of Monitorable Components')
-ax.set_ylabel('Asset Class')
-ax.set_title('Top 15 Asset Classes by Component Count')
-ax.grid(axis='x', alpha=0.3)
-plt.tight_layout()
-plt.show()
-```
-
-### Technology Heatmap
-```{python}
-#| echo: false
-#| label: fig-component-tech-heatmap
-#| fig-cap: "Component Technology Requirements Heatmap"
-
-# Prepare data for heatmap
-# Convert P/S/- to numeric: P=2, S=1, -=0
-comp_tech_numeric = comp_tech.copy()
-comp_tech_numeric = comp_tech_numeric.set_index('Component Type')
-
-# Replace ratings with numeric values
-rating_map = {'P': 2, 'S': 1, '-': 0, np.nan: 0}
-for col in comp_tech_numeric.columns:
-    comp_tech_numeric[col] = comp_tech_numeric[col].map(rating_map).fillna(0)
-
-# Count technologies per component
-comp_tech_numeric['tech_count'] = (comp_tech_numeric > 0).sum(axis=1)
-
-# Create heatmap
-fig, ax = plt.subplots(figsize=(10, 12))
-sns.heatmap(
-    comp_tech_numeric.drop('tech_count', axis=1),
-    cmap=['#f0f0f0', '#ffeb99', '#4CAF50'],  # 0=gray, 1=yellow (S), 2=green (P)
-    cbar_kws={'label': 'Priority (0=None, 1=Secondary, 2=Primary)'},
-    linewidths=0.5,
-    linecolor='white',
-    ax=ax,
-    vmin=0,
-    vmax=2
-)
-ax.set_title('Component Technology Requirements\n(Green=Primary, Yellow=Secondary, Gray=None)')
-ax.set_xlabel('Technology Code')
-ax.set_ylabel('Component Type')
-plt.tight_layout()
-plt.show()
-
-# Also show top components by technology count
-print("\nTop 10 Components by Number of Technologies:")
-print(comp_tech_numeric.nlargest(10, 'tech_count')[['tech_count']])
-```
-
-### Technology Distribution
-```{python}
-#| echo: false  
-#| label: fig-tech-distribution
-#| fig-cap: "Technology Needs Distribution Across Asset Classes"
-
-# Count P and S ratings per technology
-tech_summary = []
-for tech in tech_cols:
-    col = f'NEEDS_{tech}'
-    if col in needs_coverage.columns:
-        p_count = (needs_coverage[col] == 'P').sum()
-        s_count = (needs_coverage[col] == 'S').sum()
-        tech_summary.append({
-            'Technology': tech,
-            'Primary': p_count,
-            'Secondary': s_count,
-            'Total': p_count + s_count
-        })
-
-tech_summary_df = pd.DataFrame(tech_summary)
-
-# Stacked bar chart
-fig, ax = plt.subplots(figsize=(10, 6))
-x = range(len(tech_summary_df))
-ax.bar(x, tech_summary_df['Primary'], label='Primary', color='#2e7d32')
-ax.bar(x, tech_summary_df['Secondary'], bottom=tech_summary_df['Primary'], 
-       label='Secondary', color='#81c784')
-
-ax.set_xticks(x)
-ax.set_xticklabels(tech_summary_df['Technology'])
-ax.set_ylabel('Number of Asset Classes')
-ax.set_xlabel('Technology Code')
-ax.set_title('Technology Needs Distribution (Primary vs Secondary)')
-ax.legend()
-ax.grid(axis='y', alpha=0.3)
-plt.tight_layout()
-plt.show()
-
-# Print summary table
-print("\nTechnology Needs Summary:")
-print(tech_summary_df.to_string(index=False))
-```
-:::
 
 
 ## ASSET SQL PULL
@@ -513,9 +523,40 @@ print(f"  - output/asset_class.csv")
 ```
 
 ## Merging Needs Coverage with Asset Data
+
+```{python}
+#| label: merge-needs-use-with-assets
+
+# Merge both NEEDS and USE flags with asset_class
+asset_class = asset_class.merge(tech_needs_wide, on='ASSET_CLASS', how='left')
+asset_class = asset_class.merge(tech_use_wide, on='ASSET_CLASS', how='left')
+
+# Fill NaN with 'N' for classes not in config
+needs_cols = [col for col in asset_class.columns if col.startswith('NEEDS_')]
+use_cols = [col for col in asset_class.columns if col.startswith('USE_')]
+
+for col in needs_cols + use_cols:
+    asset_class[col] = asset_class[col].fillna('N')
+
+print(f"✓ Assets with NEEDS and USE flags: {len(asset_class):,}")
+
+# Summary comparison
+print("\n" + "="*60)
+print("NEEDS (Primary only) vs USE (Primary + Secondary)")
+print("="*60)
+
+for tech in tech_cols:
+    needs_count = (asset_class[f'NEEDS_{tech}'] == 'Y').sum()
+    use_count = (asset_class[f'USE_{tech}'] == 'Y').sum()
+    print(f"{tech:4s} | NEEDS: {needs_count:6,} | USE: {use_count:6,} | Diff: {use_count-needs_count:6,}")
+
+asset_class.info()
+```
+
+
 ```{python}
 #| echo: false
-#| label: merge-needs-with-assets
+#| label: OLD-merge-needs-with-assets
 
 # Merge needs coverage with actual assets
 assets_with_needs = asset_class.merge(
@@ -539,7 +580,7 @@ assets_with_needs.info()
 
 ```{python}
 #| echo: false
-#| label: output-assets_with_needs
+#| label: OLD-output-assets_with_needs
 
 # Save assets_with_needs
 assets_with_needs.to_pickle('data/assets_with_needs.pkl')
@@ -548,13 +589,15 @@ assets_with_needs.to_csv('output/intermediate/assets_with_needs.csv', index=Fals
 print(f"\nSaved final coverage report:")
 print(f"  - data/assets_with_needs.pkl ({len(assets_with_needs):,} assets)")
 print(f"  - output/assets_with_needs.csv")
+
+
 ```
 
 ## Needs by Department
 
 ```{python}
 #| echo: false
-#| label: needs-by-department
+#| label: OLD-needs-by-department
 
 # Summary by department - count assets that NEED each technology (P or S)
 dept_needs_summary = []
@@ -586,7 +629,7 @@ print(dept_needs_df.to_string(index=False))
 
 ```{python}
 #| echo: false
-#| label: needs-by-dept-primary-only
+#| label: OLD-needs-by-dept-primary-only
 
 # Alternative view: PRIMARY needs only
 dept_needs_primary = []
@@ -991,9 +1034,6 @@ print(f"\nAssets with null MAX_LASTREADING_DATE: {has_mon_m_agg['MAX_LASTREADING
 
 ## Combine Route and Meter Coverage
 ```{python}
-#| echo: true
-#| label: merge-routes-meters-coverage
-
 # Drop asset attributes from both coverage tables (we'll get from asset_class)
 asset_route_coverage_slim = asset_route_coverage.drop(['ASSET_DESC', 'CLASS', 'DEPT'], axis=1)
 has_mon_m_agg_slim = has_mon_m_agg.drop(['ASSET_DESC', 'CLASS', 'DEPT'], axis=1)
@@ -1005,11 +1045,11 @@ has_monitoring_slim = asset_route_coverage_slim.merge(
     how='outer'
 )
 
-# Now merge with asset_class to get the authoritative asset attributes
-has_monitoring = has_monitoring_slim.merge(
-    asset_class,
+# FIX: Start with ALL assets from asset_class, then add monitoring data
+has_monitoring = asset_class.merge(
+    has_monitoring_slim,
     on='ASSETNUM',
-    how='left'  # Left join because we want all monitored assets
+    how='left'  # Keep ALL assets, even those with no monitoring
 )
 
 # Fill NaN values with 'N' for technologies not present
@@ -1017,9 +1057,9 @@ has_cols = [col for col in has_monitoring.columns if col.startswith('HAS_')]
 for col in has_cols:
     has_monitoring[col] = has_monitoring[col].fillna('N')
 
-print(f"Total assets with monitoring: {len(has_monitoring):,}")
-print(f"Assets matched to asset master: {has_monitoring['ASSET_CLASS'].notna().sum():,}")
-print(f"Assets NOT in asset master: {has_monitoring['ASSET_CLASS'].isna().sum():,}")
+print(f"Total assets: {len(has_monitoring):,}")
+print(f"Assets with monitoring: {has_monitoring_slim['ASSETNUM'].nunique():,}")
+print(f"Assets without monitoring: {len(has_monitoring) - has_monitoring_slim['ASSETNUM'].nunique():,}")
 
 has_monitoring.info()
 ```
@@ -1054,8 +1094,240 @@ for tech in tech_cols:
 # PHASE V - Coverage Report: Needs vs Has
 
 ```{python}
+#| label: coverage-judgment
+
+# After Phase IV merge creates has_monitoring dataframe
+
+# Create judgment columns based ONLY on NEEDS vs HAS
+for tech in tech_cols:
+    needs_col = f'NEEDS_{tech}'
+    has_col = f'HAS_{tech}'
+    judge_col = f'{tech.lower()}_judge'
+    
+    # Default: Not applicable
+    has_monitoring[judge_col] = 'N'
+    
+    # GREEN: NEEDS and HAS (Covered)
+    has_monitoring.loc[
+        (has_monitoring[needs_col] == 'Y') & (has_monitoring[has_col] == 'Y'),
+        judge_col
+    ] = 'G'
+    
+    # RED: NEEDS but no HAS (Gap - Critical!)
+    has_monitoring.loc[
+        (has_monitoring[needs_col] == 'Y') & (has_monitoring[has_col] == 'N'),
+        judge_col
+    ] = 'R'
+    
+    # YELLOW: HAS but no NEEDS (Over-monitored)
+    # Note: Could be valid if USE=Y, but we don't factor that into judgment
+    has_monitoring.loc[
+        (has_monitoring[needs_col] == 'N') & (has_monitoring[has_col] == 'Y'),
+        judge_col
+    ] = 'Y'
+
+# Summary
+print("\n" + "="*60)
+print("COVERAGE JUDGMENT SUMMARY (NEEDS vs HAS)")
+print("="*60)
+
+for tech in tech_cols:
+    judge_col = f'{tech.lower()}_judge'
+    print(f"\n{tech}:")
+    vc = has_monitoring[judge_col].value_counts()
+    
+    green = vc.get('G', 0)
+    red = vc.get('R', 0)
+    yellow = vc.get('Y', 0)
+    na = vc.get('N', 0)
+    
+    total_needs = green + red
+    coverage_pct = (green / total_needs * 100) if total_needs > 0 else 0
+    
+    print(f"  GREEN (Covered):        {green:6,}")
+    print(f"  RED (Gap):              {red:6,}")
+    print(f"  YELLOW (Over-mon):      {yellow:6,}")
+    print(f"  N (Not applicable):     {na:6,}")
+    print(f"  → Critical Coverage:    {coverage_pct:.1f}%")
+```
+
+```{python}
+#| label: export-coverage-report
+
+# Build comprehensive coverage report with all key metrics
+coverage_report = has_monitoring.copy()
+
+# Select columns for export
+# Core asset info
+asset_info_cols = ['ASSETNUM', 'ASSET_DESC', 'ASSET_CLASS', 'ASSET_DEPT']
+
+# NEEDS flags (what must be monitored - Primary only)
+needs_cols = [col for col in coverage_report.columns if col.startswith('NEEDS_')]
+
+# HAS flags (what is currently monitored)
+has_cols = [col for col in coverage_report.columns if col.startswith('HAS_')]
+
+# Judgment flags (gap analysis)
+judge_cols = [f'{tech.lower()}_judge' for tech in tech_cols]
+
+# USE flags (optional - for analytics)
+use_cols = [col for col in coverage_report.columns if col.startswith('USE_')]
+
+# Additional metadata (if you have these columns)
+metadata_cols = []
+if 'ROUTE_COUNT' in coverage_report.columns:
+    metadata_cols.append('ROUTE_COUNT')
+if 'METER_COUNT' in coverage_report.columns:
+    metadata_cols.append('METER_COUNT')
+if 'MAX_LASTREADING_DATE' in coverage_report.columns:
+    metadata_cols.append('MAX_LASTREADING_DATE')
+
+# Combine all columns
+export_cols = asset_info_cols + needs_cols + has_cols + judge_cols + use_cols + metadata_cols
+
+# Filter to only include columns that exist
+export_cols = [col for col in export_cols if col in coverage_report.columns]
+
+# Create the export dataframe
+coverage_report_export = coverage_report[export_cols].copy()
+
+# Sort by class and asset number
+coverage_report = coverage_report_export.sort_values(['ASSET_CLASS', 'ASSETNUM'])
+
+# # Save final coverage report
+coverage_report.to_pickle('data/coverage_report.pkl')
+coverage_report.to_csv('output/coverage_report.csv', index=False)
+
+print(f"\nSaved final coverage report:")
+print(f"  - data/coverage_report.pkl ({len(coverage_report):,} assets)")
+print(f"  - output/coverage_report.csv")
+print(f"✓ Exported coverage report:")
+
+print(f"  Total assets: {len(coverage_report_export):,}")
+print(f"  Columns: {len(export_cols)}")
+print(f"\nColumn groups:")
+print(f"  Asset info: {len(asset_info_cols)}")
+print(f"  NEEDS flags: {len(needs_cols)}")
+print(f"  HAS flags: {len(has_cols)}")
+print(f"  Judgment flags: {len(judge_cols)}")
+print(f"  USE flags: {len(use_cols)}")
+print(f"  Metadata: {len(metadata_cols)}")
+
+# Show sample
+print("\nSample of coverage report:")
+coverage_report.head()
+```
+
+```{python}
+#| label: export-summary-reports
+
+# 1. Gap Summary by Technology
+gap_summary = []
+
+for tech in tech_cols:
+    needs_col = f'NEEDS_{tech}'
+    has_col = f'HAS_{tech}'
+    judge_col = f'{tech.lower()}_judge'
+    
+    total_assets = len(coverage_report)
+    needs_count = (coverage_report[needs_col] == 'Y').sum()
+    has_count = (coverage_report[has_col] == 'Y').sum()
+    
+    green = (coverage_report[judge_col] == 'G').sum()
+    red = (coverage_report[judge_col] == 'R').sum()
+    yellow = (coverage_report[judge_col] == 'Y').sum()
+    na = (coverage_report[judge_col] == 'N').sum()
+    
+    coverage_pct = (green / needs_count * 100) if needs_count > 0 else 0
+    
+    gap_summary.append({
+        'Technology': tech,
+        'Total_Assets': total_assets,
+        'Assets_Needing': needs_count,
+        'Assets_With_Monitoring': has_count,
+        'Covered_Green': green,
+        'Gap_Red': red,
+        'Over_Monitored_Yellow': yellow,
+        'Not_Applicable_N': na,
+        'Coverage_Percent': round(coverage_pct, 1)
+    })
+
+gap_summary_df = pd.DataFrame(gap_summary)
+gap_summary_df.to_csv('output/gap_summary_by_technology.csv', index=False)
+
+print("✓ Exported gap summary by technology")
+print(gap_summary_df.to_string(index=False))
+
+# 2. Gap Summary by Asset Class
+class_gap_summary = []
+
+for asset_class in coverage_report['ASSET_CLASS'].unique():
+    if pd.isna(asset_class):
+        continue
+    
+    class_data = coverage_report[coverage_report['ASSET_CLASS'] == asset_class]
+    
+    # Count gaps across all technologies
+    total_gaps = 0
+    total_needs = 0
+    
+    for tech in tech_cols:
+        judge_col = f'{tech.lower()}_judge'
+        total_gaps += (class_data[judge_col] == 'R').sum()
+        total_needs += (class_data[judge_col].isin(['G', 'R'])).sum()
+    
+    class_gap_summary.append({
+        'Asset_Class': asset_class,
+        'Asset_Count': len(class_data),
+        'Total_Technology_Needs': total_needs,
+        'Total_Gaps': total_gaps,
+        'Gap_Rate_Percent': round((total_gaps / total_needs * 100) if total_needs > 0 else 0, 1)
+    })
+
+class_gap_summary_df = pd.DataFrame(class_gap_summary).sort_values('Total_Gaps', ascending=False)
+class_gap_summary_df.to_csv('output/gap_summary_by_class.csv', index=False)
+
+print("\n✓ Exported gap summary by class")
+print(f"Classes with highest gaps:")
+print(class_gap_summary_df.head(10).to_string(index=False))
+
+# 3. Critical Gap Assets (RED judgments only)
+critical_gaps = coverage_report.copy()
+
+# Add a column counting total RED judgments per asset
+critical_gaps['total_gaps'] = 0
+for tech in tech_cols:
+    judge_col = f'{tech.lower()}_judge'
+    critical_gaps['total_gaps'] += (critical_gaps[judge_col] == 'R').astype(int)
+
+# Filter to only assets with gaps
+critical_gaps = critical_gaps[critical_gaps['total_gaps'] > 0]
+
+# Identify which technologies have gaps
+critical_gaps['missing_technologies'] = critical_gaps.apply(
+    lambda row: ', '.join([
+        tech for tech in tech_cols 
+        if f'{tech.lower()}_judge' in row.index and row[f'{tech.lower()}_judge'] == 'R'
+    ]),
+    axis=1
+)
+
+# Export critical gaps
+critical_export = critical_gaps[
+    asset_info_cols + ['total_gaps', 'missing_technologies'] + judge_cols
+].sort_values('total_gaps', ascending=False)
+
+critical_export.to_csv('output/critical_gaps.csv', index=False)
+
+print(f"\n✓ Exported critical gaps report")
+print(f"  Assets with gaps: {len(critical_export):,}")
+print(f"\nTop 10 assets with most gaps:")
+print(critical_export.head(10)[['ASSETNUM', 'ASSET_DESC', 'ASSET_CLASS', 'total_gaps', 'missing_technologies']])
+```
+
+```{python}
 #| echo: true
-#| label: merge-needs-has-coverage
+#| label: OLD-merge-needs-has-coverage
 
 # Merge has_monitoring with assets_with_needs (just the NEEDS columns)
 needs_cols = [col for col in assets_with_needs.columns if col.startswith('NEEDS_')]
@@ -1123,7 +1395,7 @@ for tech in tech_cols:
     
     coverage_report[judge_col] = coverage_report.apply(judge_coverage, axis=1)
 
-# Create MASTER_JUDGE
+# Create MASTER_JUDGE 
 judge_cols = [f'{tech}_JUDGE' for tech in tech_cols]
 
 def master_judgment(row):
