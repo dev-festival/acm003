@@ -15,6 +15,14 @@ Create fully runnable Quarto document(s) using Python to:
 - Generate coverage analysis charts and reports
 - Maintain reproducibility with dynamic outputs (no hardcoded numbers)
 
+
+### The Power of What You Built
+
+Dynamic: Add new tech to techs_def.csv → automatically flows through
+Traceable: Asset → Class → Components → Required Tech → Actual Coverage → Gap Judgment
+Actionable: MASTER_JUDGE = 0 = critical gaps to address
+Repeatable: SQL → Process → Report (all in one Quarto doc)
+Documented: README tracks everything
 ---
 
 ## Folder Structure
@@ -168,8 +176,9 @@ Each asset gets clear Y/N flags per technology:
 | File | Purpose | Usage |
 |------|---------|-------|
 | `meters-routes-coverage.csv` | Business-friendly coverage report | Excel review, executive summaries |
-| `meters_main.csv` | Aggregated meter coverage | Intermediate review |
-| `route-coverage.csv` | Aggregated route coverage | Intermediate review |
+| `meters_main.csv` | Aggregated meter coverage | Intermediate File |
+| `routecoverage.csv` | Aggregated route coverage | Intermediate File |
+| `needs_coverage.csv/pkl` | Needs Coverage file configured from 2 input files| Intermediate File |
 
 ---
 

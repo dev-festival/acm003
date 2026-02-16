@@ -341,8 +341,21 @@ for tech in tech_cols:
         s_count = (needs_coverage[col] == 'S').sum()
         print(f"  {tech}: {p_count} Primary, {s_count} Secondary")
 
-needs_coverage.head(10)
+needs_coverage.info()
 
+```
+
+```{python}
+#| echo: false
+#| label: output-needs-coverage
+
+# Save final coverage report
+needs_coverage.to_pickle('data/needs_coverage.pkl')
+needs_coverage.to_csv('output/intermediate/needs_coverage.csv', index=False)
+
+print(f"\nSaved needs coverage report:")
+print(f"  - data/needs_coverage.pkl ({len(needs_coverage):,} asset classes)")
+print(f"  - output/needs_coverage.csv")
 ```
 
 ## Visualizing Technology Needs
@@ -486,6 +499,19 @@ asset_class['ASSET_DEPT'] = asset_class['ASSET_DEPT'].astype('category')
 asset_class.info()
 ```
 
+```{python}
+#| echo: false
+#| label: output-asset_class-pkl
+
+# Save asset list with asset classes
+asset_class.to_pickle('data/asset_class.pkl')
+asset_class.to_csv('output/intermediate/asset_class.csv', index=False)
+
+print(f"\nSaved asset list with class information:")
+print(f"  - data/asset_class.pkl ({len(asset_class):,} assets)")
+print(f"  - output/asset_class.csv")
+```
+
 ## Merging Needs Coverage with Asset Data
 ```{python}
 #| echo: false
@@ -509,6 +535,19 @@ print(f"Asset classes with defined needs: {assets_with_needs['ASSETCLASS'].notna
 print(f"Asset classes without defined needs: {assets_with_needs['ASSETCLASS'].isna().sum():,}")
 
 assets_with_needs.info()
+```
+
+```{python}
+#| echo: false
+#| label: output-assets_with_needs
+
+# Save assets_with_needs
+assets_with_needs.to_pickle('data/assets_with_needs.pkl')
+assets_with_needs.to_csv('output/intermediate/assets_with_needs.csv', index=False)
+
+print(f"\nSaved final coverage report:")
+print(f"  - data/assets_with_needs.pkl ({len(assets_with_needs):,} assets)")
+print(f"  - output/assets_with_needs.csv")
 ```
 
 ## Needs by Department
@@ -739,6 +778,19 @@ for tech in route_techs:
 print("\nNote: GM (General Metering) data comes from separate SQL Meters query")
 ```
 
+```{python}
+#| echo: false
+#| label: output-asset_route_coverage
+
+# Save asset_route_coverage
+asset_route_coverage.to_pickle('data/asset_route_coverage.pkl')
+asset_route_coverage.to_csv('output/intermediate/asset_route_coverage.csv', index=False)
+
+print(f"\nSaved asset_route_coverage:")
+print(f"  - data/asset_route_coverage.pkl ({len(asset_route_coverage):,} assets)")
+print(f"  - output/intermediate/asset_route_coverage.csv")
+```
+
 ## Data Architecture
 
 ```{mermaid}
@@ -899,6 +951,19 @@ print("\nFinal aggregated data sample:")
 has_mon_m_agg.info()
 ```
 
+```{python}
+#| echo: false
+#| label: output-has_mon_m_agg
+
+# Save has_mon_m_agg
+has_mon_m_agg.to_pickle('data/has_mon_m_agg.pkl')
+has_mon_m_agg.to_csv('output/intermediate/has_mon_m_agg.csv', index=False)
+
+print(f"\nSaved final coverage report:")
+print(f"  - data/has_mon_m_agg.pkl ({len(has_mon_m_agg):,} assets)")
+print(f"  - output/intermediate/has_mon_m_agg.csv")
+```
+
 ## General Meters Summary Stats
 
 ```{python}
@@ -957,6 +1022,19 @@ print(f"Assets matched to asset master: {has_monitoring['ASSET_CLASS'].notna().s
 print(f"Assets NOT in asset master: {has_monitoring['ASSET_CLASS'].isna().sum():,}")
 
 has_monitoring.info()
+```
+
+```{python}
+#| echo: false
+#| label: output-has_monitoring
+
+# Save has_monitoring
+has_monitoring.to_pickle('data/has_monitoring.pkl')
+has_monitoring.to_csv('output/intermediate/has_monitoring.csv', index=False)
+
+print(f"\nSaved has_monitoring:")
+print(f"  - data/has_monitoring.pkl ({len(has_monitoring):,} assets)")
+print(f"  - output/intermediate/has_monitoring.csv")
 ```
 
 ```{python}
@@ -1019,44 +1097,63 @@ for tech in tech_cols:
     has_col = f'HAS_{tech}'
     judge_col = f'{tech}_JUDGE'
     
-    # Apply tri-state judgment logic
-    # 0 = Critical gap (Primary need not met)
-    # 1 = Compliant (Primary/Secondary need met)
-    # 2 = Not Required (doesn't need this technology)
-    coverage_report[judge_col] = coverage_report.apply(
-        lambda row: (
-            0 if (row[needs_col] == 'P' and row[has_col] == 'N') else  # Critical gap
-            1 if (row[needs_col] in ['P', 'S'] and row[has_col] == 'Y') else  # Compliant
-            2  # Not Required (includes Secondary needs not met)
-        ),
-        axis=1
-    )
+    # Apply quad-state judgment logic
+    def judge_coverage(row):
+        need = row[needs_col]
+        has = row[has_col]
+        
+        # Critical Gap: Has P or S need but NO monitoring
+        if need in ['P', 'S'] and has == 'N':
+            return 'Critical Gap'
+        
+        # Compliant: Has P need and HAS monitoring
+        if need == 'P' and has == 'Y':
+            return 'Compliant'
+        
+        # Partial Coverage: Has S need and monitoring, OR has monitoring but no need
+        if (need == 'S' and has == 'Y') or (need == 'N' and has == 'Y'):
+            return 'Partial Coverage'
+        
+        # Not Applicable: No need (N) and no monitoring
+        if need == 'N' and has == 'N':
+            return 'Not Applicable'
+        
+        # Fallback (shouldn't hit this)
+        return 'Unknown'
+    
+    coverage_report[judge_col] = coverage_report.apply(judge_coverage, axis=1)
 
-# Create MASTER_JUDGE column (tri-state)
-# 0 = At least one critical gap (any tech has JUDGE = 0)
-# 1 = All needs met (all techs are either 1 or 2, with at least one 1)
-# 2 = Not required for ANY technology (all techs are 2)
-
+# Create MASTER_JUDGE
 judge_cols = [f'{tech}_JUDGE' for tech in tech_cols]
 
-coverage_report['MASTER_JUDGE'] = coverage_report[judge_cols].apply(
-    lambda row: (
-        0 if (row == 0).any() else          # Any gap = Critical
-        2 if (row == 2).all() else          # All not required = Not Required
-        1                                    # Otherwise = Compliant
-    ),
-    axis=1
-)
+def master_judgment(row):
+    judgments = row[judge_cols].values
+    
+    # Critical Gap: ANY technology has critical gap
+    if 'Critical Gap' in judgments:
+        return 'Critical Gap'
+    
+    # Compliant: At least one Compliant AND no critical gaps AND no partial
+    if 'Compliant' in judgments and 'Partial Coverage' not in judgments:
+        return 'Compliant'
+    
+    # Partial Coverage: Has some coverage but not full compliance
+    if 'Compliant' in judgments or 'Partial Coverage' in judgments:
+        return 'Partial Coverage'
+    
+    # Not Applicable: All technologies are N/A
+    if all(j == 'Not Applicable' for j in judgments):
+        return 'Not Applicable'
+    
+    return 'Unknown'
+
+coverage_report['MASTER_JUDGE'] = coverage_report[judge_cols].apply(master_judgment, axis=1)
 
 # Summary statistics
 print("Coverage Judgment Summary:")
-print(f"Assets with FULL compliance (MASTER_JUDGE = 1): {(coverage_report['MASTER_JUDGE'] == 1).sum():,}")
-print(f"Assets with critical gaps (MASTER_JUDGE = 0): {(coverage_report['MASTER_JUDGE'] == 0).sum():,}")
-print(f"\nCritical gaps by technology (Primary need not met):")
-for tech in tech_cols:
-    gap_count = (coverage_report[f'{tech}_JUDGE'] == 0).sum()
-    if gap_count > 0:
-        print(f"  {tech}: {gap_count:,} assets")
+for status in ['Compliant', 'Partial Coverage', 'Critical Gap', 'Not Applicable']:
+    count = (coverage_report['MASTER_JUDGE'] == status).sum()
+    print(f"{status}: {count:,} assets")
 
 coverage_report.info()
 ```
