@@ -8,6 +8,10 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from pathlib import Path
+import sys
+
+# Add the directory containing acm_config.py to Python path
+sys.path.insert(0, 'data/st_tbl')
 
 # Page configuration
 st.set_page_config(
@@ -29,6 +33,15 @@ except FileNotFoundError:
     st.info("Please run your QMD analysis first to generate the coverage report.")
     st.stop()
 
+from acm_config import ACMConfig
+
+@st.cache_resource
+def load_acm_config():
+    """Load the ACM configuration"""
+    return ACMConfig('data/st_tbl/normalized_config')
+
+config = load_acm_config()
+
 # Get technology codes from judge columns
 tech_codes = [col.replace('_judge', '').upper() 
               for col in coverage_data.columns if col.endswith('_judge')]
@@ -38,88 +51,155 @@ st.title("📊 ACM Coverage Dashboard")
 st.markdown("---")
 
 # ====================
-# SECTION 1: Department Overview
+# SECTION 1: Department Selector & Overview with Filters
 # ====================
 
 st.header("Department Coverage Overview")
 
+# Sidebar for filtering departments from top chart
+with st.sidebar:
+    st.header("Chart Filters")
+    
+    all_departments = sorted(coverage_data['ASSET_DEPT'].unique())
+    
+    st.markdown("### Departments to Display")
+    st.caption("Uncheck departments to hide from the overview chart")
+    
+    # Multi-select for departments to include in top chart
+    departments_to_show = st.multiselect(
+        "Select departments to display",
+        options=all_departments,
+        default=all_departments,
+        label_visibility="collapsed"
+    )
+    
+    # Quick select/deselect all buttons
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("Select All"):
+            st.session_state.departments_to_show = all_departments
+            st.rerun()
+    with col2:
+        if st.button("Deselect All"):
+            st.session_state.departments_to_show = []
+            st.rerun()
 
-# Calculate department-level metrics
+# Department selector for detail views
+selected_dept = st.selectbox(
+    "Select Department for Detail View",
+    options=all_departments
+)
+
+st.markdown("---")
+
+# Calculate department-level metrics for FILTERED departments
 dept_metrics = []
 
-for dept in sorted(coverage_data['ASSET_DEPT'].unique()):
-    dept_data = coverage_data[coverage_data['ASSET_DEPT'] == dept]
+for dept in departments_to_show:
+    dept_data_temp = coverage_data[coverage_data['ASSET_DEPT'] == dept]
     
-    # Count total NEEDS and coverage across all technologies
-    total_needs = 0
-    total_covered = 0
+    # Classify each asset
+    def classify_asset(row):
+        judgments = [row[f'{tech.lower()}_judge'] for tech in tech_codes]
+        if 'R' in judgments:
+            return 'RED'
+        if 'G' in judgments:
+            return 'GREEN'
+        if 'Y' in judgments:
+            return 'YELLOW'
+        return 'N'
     
-    for tech in tech_codes:
-        judge_col = f'{tech.lower()}_judge'
-        total_needs += (dept_data[judge_col].isin(['G', 'R'])).sum()
-        total_covered += (dept_data[judge_col] == 'G').sum()
-    
-    coverage_pct = (total_covered / total_needs * 100) if total_needs > 0 else 0
+    dept_data_temp['overall_status'] = dept_data_temp.apply(classify_asset, axis=1)
     
     # Count status distribution
-    total_green = sum((dept_data[f'{tech.lower()}_judge'] == 'G').sum() for tech in tech_codes)
-    total_red = sum((dept_data[f'{tech.lower()}_judge'] == 'R').sum() for tech in tech_codes)
-    total_yellow = sum((dept_data[f'{tech.lower()}_judge'] == 'Y').sum() for tech in tech_codes)
-    total_na = sum((dept_data[f'{tech.lower()}_judge'] == 'N').sum() for tech in tech_codes)
+    total_red = (dept_data_temp['overall_status'] == 'RED').sum()
+    total_green = (dept_data_temp['overall_status'] == 'GREEN').sum()
+    total_yellow = (dept_data_temp['overall_status'] == 'YELLOW').sum()
+    total_na = (dept_data_temp['overall_status'] == 'N').sum()
     
     dept_metrics.append({
         'Department': dept,
-        'Assets': len(dept_data),
-        'GREEN': total_green,
         'RED': total_red,
+        'GREEN': total_green,
         'YELLOW': total_yellow,
         'N': total_na,
-        'Coverage %': round(coverage_pct, 1)
     })
 
-dept_metrics_df = pd.DataFrame(dept_metrics).sort_values('Department')
+dept_metrics_df = pd.DataFrame(dept_metrics)
 
-# Create stacked bar chart for department overview
-fig_dept = go.Figure()
+# Add sorting options with color-based ordering
+col1, col2 = st.columns([3, 1])
 
-fig_dept.add_trace(go.Bar(
-    name='GREEN (Covered)',
-    x=dept_metrics_df['Department'],
-    y=dept_metrics_df['GREEN'],
-    marker_color='#90EE90'
-))
+with col1:
+    sort_by = st.radio(
+        "Sort departments by:",
+        options=['RED (Critical Gap)', 'GREEN (Covered)', 'YELLOW (Over-monitored)', 'N (Not Applicable)'],
+        horizontal=True
+    )
 
-fig_dept.add_trace(go.Bar(
-    name='RED (Gap)',
-    x=dept_metrics_df['Department'],
-    y=dept_metrics_df['RED'],
-    marker_color='#FF6B6B'
-))
+with col2:
+    sort_order = st.radio(
+        "Order:",
+        options=['Max → Min', 'Min → Max'],
+        horizontal=True
+    )
 
-fig_dept.add_trace(go.Bar(
-    name='YELLOW (Partial Monitoring)',
-    x=dept_metrics_df['Department'],
-    y=dept_metrics_df['YELLOW'],
-    marker_color='#FFD700'
-))
+# Map display name to column
+sort_map = {
+    'RED (Critical Gap)': 'RED',
+    'GREEN (Covered)': 'GREEN',
+    'YELLOW (Over-monitored)': 'YELLOW',
+    'N (Not Applicable)': 'N'
+}
 
-fig_dept.add_trace(go.Bar(
-    name='N (Not Applicable)',
-    x=dept_metrics_df['Department'],
-    y=dept_metrics_df['N'],
-    marker_color='#D3D3D3'
-))
+# Sort based on selection
+ascending = (sort_order == 'Min → Max')
+dept_metrics_df = dept_metrics_df.sort_values(sort_map[sort_by], ascending=ascending)
 
-fig_dept.update_layout(
-    barmode='stack',
-    title='Coverage Status by Department',
-    xaxis_title='Department',
-    yaxis_title='Count',
-    height=400,
-    showlegend=True
-)
+# Create stacked bar chart for filtered departments
+if not dept_metrics_df.empty:
+    fig_dept = go.Figure()
 
-st.plotly_chart(fig_dept, use_container_width=True)
+    fig_dept.add_trace(go.Bar(
+        name='RED (Critical Gap)',
+        x=dept_metrics_df['Department'],
+        y=dept_metrics_df['RED'],
+        marker_color='#FF6B6B'
+    ))
+
+    fig_dept.add_trace(go.Bar(
+        name='GREEN (Covered)',
+        x=dept_metrics_df['Department'],
+        y=dept_metrics_df['GREEN'],
+        marker_color='#90EE90'
+    ))
+
+    fig_dept.add_trace(go.Bar(
+        name='YELLOW (Over-monitored)',
+        x=dept_metrics_df['Department'],
+        y=dept_metrics_df['YELLOW'],
+        marker_color='#FFA500'
+    ))
+
+    fig_dept.add_trace(go.Bar(
+        name='N (Not Applicable)',
+        x=dept_metrics_df['Department'],
+        y=dept_metrics_df['N'],
+        marker_color='#808080'
+    ))
+
+    fig_dept.update_layout(
+        barmode='stack',
+        title=f'Coverage Status by Department ({len(departments_to_show)} departments shown)',
+        xaxis_title='Department',
+        yaxis_title='Count',
+        height=400,
+        showlegend=True
+    )
+
+    st.plotly_chart(fig_dept, use_container_width=True)
+else:
+    st.warning("⚠️ No departments selected. Please select at least one department from the sidebar.")
 
 st.markdown("---")
 
@@ -383,6 +463,58 @@ selected_class = st.selectbox(
 )
 
 if selected_class:
+     
+    with st.expander("📋 Technology Requirements Reference (from Configuration)", expanded=True):
+        st.markdown(f"**Expected monitoring for {selected_class} based on configuration**")
+        
+        # Get technology assignments for this class from config
+        tech_assignments = config.get_class_technologies(selected_class)
+        
+        if not tech_assignments.empty:
+            # Create matrix view
+            pivot_df = tech_assignments.pivot_table(
+                index='component_name',
+                columns='technology_code',
+                values='application_type',
+                aggfunc='first'
+            ).fillna('')
+            
+            # Map to P/S
+            pivot_df = pivot_df.applymap(lambda x: 'P' if x == 'Primary' else 'S' if x == 'Secondary' else '')
+            pivot_df = pivot_df.reset_index()
+            pivot_df.columns.name = None
+            pivot_df = pivot_df.rename(columns={'component_name': 'Component'})
+            
+            # Style the dataframe with colors
+            def style_ps_values(val):
+                if val == 'P':
+                    return 'background-color: #90EE90; color: black; font-weight: bold; font-size: 14px;'
+                elif val == 'S':
+                    return 'background-color: #FFD700; color: black; font-weight: bold; font-size: 14px;'
+                else:
+                    return 'font-size: 14px;'
+            
+            styled_df = pivot_df.style.applymap(
+                style_ps_values,
+                subset=[col for col in pivot_df.columns if col != 'Component']
+            ).set_properties(**{
+                'font-size': '14px',
+                'text-align': 'center'
+            }, subset=[col for col in pivot_df.columns if col != 'Component'])
+            
+            # Display styled dataframe
+            st.dataframe(
+                styled_df,
+                use_container_width=True,
+                hide_index=True
+            )
+            
+            st.caption("P = Primary (NEEDS monitoring) | S = Secondary (CAN USE for monitoring)")
+        else:
+            st.info("No technology requirements configured for this asset class.")
+    
+    st.markdown("---")
+
     class_assets = dept_data[dept_data['ASSET_CLASS'] == selected_class].copy()
     
     st.subheader(f"Assets in {selected_class}")
