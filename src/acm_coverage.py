@@ -84,12 +84,6 @@ with st.sidebar:
             st.session_state.departments_to_show = []
             st.rerun()
 
-# Department selector for detail views
-selected_dept = st.selectbox(
-    "Select Department for Detail View",
-    options=all_departments
-)
-
 st.markdown("---")
 
 # Calculate department-level metrics for FILTERED departments
