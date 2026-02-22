@@ -19,8 +19,8 @@ component_id,technology_id,technology_code,application_type
 6,3,VI,Primary
 7,3,VI,Primary
 7,4,UL,Secondary
-7,7,CH,Primary
-8,7,CH,Primary
+7,7,CW,Primary
+8,7,CW,Primary
 9,1,IR,Secondary
 9,3,VI,Primary
 10,1,IR,Secondary

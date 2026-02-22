@@ -39,3 +39,7 @@ output/
 
 #Stack Dump
 bash.exe.stackdump
+
+# admin files
+data/st_tbl/normalized_config/review_unknown_tech_codes.csv
+
