@@ -201,7 +201,12 @@ hr { border-color: #1e2330; }
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
 
-ADMIN_PASSWORD = "acm-admin-2026"   # TODO: move to .env before production
+# Replace with this
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+ADMIN_PASSWORD = os.getenv("ACM_ADMIN_PASSWORD")
 
 def init_state():
     if 'admin_auth' not in st.session_state:
