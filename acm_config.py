@@ -42,7 +42,9 @@ class ACMConfig:
         Directory containing the six CSV files. Defaults to 'normalized_config'.
     """
 
-    def __init__(self, config_dir: str | Path = 'data/st_tbl/normalized_config'):
+    def __init__(self, config_dir: str | Path = None):
+        if config_dir is None:
+            config_dir = Path(__file__).resolve().parent / 'data' / 'st_tbl' / 'normalized_config'
         self.config_dir = Path(config_dir)
         self._load_all()
         print(f"✓ ACMConfig loaded from '{self.config_dir}'")
@@ -356,6 +358,49 @@ class ACMConfig:
         print(f"  ✓ Updated {component_name} — {tech_code}: {old_type} → {new_application_type}")
         return True
 
+    def request_update_application_type(self, component_name: str, tech_code: str,
+                                         new_application_type: str,
+                                         notes: str, requested_by: str) -> int:
+        """
+        Submit a request to change an application_type (Primary ↔ Secondary).
+        Does NOT change anything immediately — writes a pending log entry.
+
+        Returns the log_id of the pending request.
+        """
+        self._assert_component_exists(component_name)
+        self._assert_tech_exists(tech_code)
+        if new_application_type not in VALID_APPLICATION_TYPES:
+            raise ValueError(f"application_type must be one of {VALID_APPLICATION_TYPES}")
+
+        mask = (
+            (self.component_technology['component_name'] == component_name) &
+            (self.component_technology['technology_code'] == tech_code)
+        )
+        if not mask.any():
+            raise ValueError(f"No assignment found: {component_name} — {tech_code}")
+
+        old_type = self.component_technology.loc[mask, 'application_type'].iloc[0]
+        if old_type == new_application_type:
+            raise ValueError(f"No change: already '{new_application_type}'")
+
+        log_id = self._log_change(
+            entity_type='component_technology',
+            action='update_request',
+            entity_key=f"{component_name} → {tech_code}",
+            payload={
+                'component_name': component_name,
+                'technology_code': tech_code,
+                'old_application_type': old_type,
+                'new_application_type': new_application_type,
+            },
+            notes=notes,
+            requested_by=requested_by,
+            status='pending',
+        )
+        print(f"  ⏳ Update request submitted: {component_name} — {tech_code} "
+              f"{old_type} → {new_application_type} (log_id={log_id})")
+        return log_id
+
     def assign_component_to_class(self, class_name: str, component_name: str,
                                    requested_by: str = 'system') -> bool:
         """
@@ -500,8 +545,26 @@ class ACMConfig:
         entity_type = row['entity_type']
         action = row['action']
 
-        if action != 'remove_request':
-            raise ValueError(f"log_id {log_id} is not a remove_request (action='{action}')")
+        if action not in ('remove_request', 'update_request'):
+            raise ValueError(
+                f"log_id {log_id} has action='{action}' — only remove_request "
+                f"and update_request can be approved."
+            )
+
+        # Handle P\u2194S update requests
+        if action == 'update_request':
+            mask = (
+                (self.component_technology['component_name'] == payload['component_name']) &
+                (self.component_technology['technology_code'] == payload['technology_code'])
+            )
+            self.component_technology.loc[mask, 'application_type'] = \
+                payload['new_application_type']
+            self._save('component_technology.csv', self.component_technology)
+            print(f"  \u2713 Applied update: {payload['component_name']} \u2014 "
+                  f"{payload['technology_code']}: "
+                  f"{payload['old_application_type']} \u2192 {payload['new_application_type']}")
+            self._update_log_status(log_id, 'approved', reviewed_by)
+            return True
 
         # Execute the deletion
         if entity_type == 'component':

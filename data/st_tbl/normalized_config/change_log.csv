@@ -1,1 +1,2 @@
 log_id,timestamp,entity_type,action,entity_key,payload,notes,requested_by,status,reviewed_by,reviewed_at
+1,2026-02-22T22:50:00.884072+00:00,class_component,remove_request,MECHANICAL \ FAN \ BELT DRIVEN FAN ← Rolling Element Bearings (Oil),"{""class_name"": ""MECHANICAL \\ FAN \\ BELT DRIVEN FAN"", ""component_name"": ""Rolling Element Bearings (Oil)""}",We don't typically see oil bearings on our fans,Michael Moyer,pending,,
