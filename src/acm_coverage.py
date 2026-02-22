@@ -11,7 +11,7 @@ from pathlib import Path
 import sys
 
 # Add the directory containing acm_config.py to Python path
-sys.path.insert(0, 'data/st_tbl')
+sys.path.insert(0, '.')
 
 # Page configuration
 st.set_page_config(
@@ -462,7 +462,11 @@ if selected_class:
         st.markdown(f"**Expected monitoring for {selected_class} based on configuration**")
         
         # Get technology assignments for this class from config
-        tech_assignments = config.get_class_technologies(selected_class)
+        # With this — gets the raw component-level detail
+        components = config.get_class_components(selected_class)
+        tech_assignments = config.component_technology[
+            config.component_technology['component_name'].isin(components)
+        ].copy()
         
         if not tech_assignments.empty:
             # Create matrix view
