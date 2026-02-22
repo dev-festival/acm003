@@ -1,65 +1,65 @@
-component_id,technology_id,technology_code,application_type
-1,1,IR,Secondary
-1,3,VI,Primary
-1,4,UL,Secondary
-1,5,MC,Secondary
-2,1,IR,Secondary
-2,3,VI,Secondary
-2,4,UL,Secondary
-2,5,MC,Primary
-3,2,LU,Primary
-3,3,VI,Primary
-3,4,UL,Secondary
-4,3,VI,Primary
-4,4,UL,Primary
-5,1,IR,Secondary
-5,2,LU,Primary
-5,4,UL,Secondary
-5,8,GM,Secondary
-6,3,VI,Primary
-7,3,VI,Primary
-7,4,UL,Secondary
-7,7,CW,Primary
-8,7,CW,Primary
-9,1,IR,Secondary
-9,3,VI,Primary
-10,1,IR,Secondary
-10,2,LU,Primary
-10,3,VI,Primary
-10,4,UL,Secondary
-10,5,MC,Secondary
-11,1,IR,Secondary
-11,3,VI,Primary
-11,5,MC,Primary
-11,8,GM,Secondary
-13,1,IR,Secondary
-13,2,LU,Primary
-13,4,UL,Secondary
-14,3,VI,Primary
-15,1,IR,Secondary
-15,2,LU,Primary
-15,3,VI,Primary
-15,4,UL,Secondary
-15,8,GM,Primary
-16,2,LU,Primary
-16,4,UL,Secondary
-17,4,UL,Primary
-17,8,GM,Secondary
-18,1,IR,Primary
-18,4,UL,Secondary
-19,1,IR,Primary
-19,4,UL,Secondary
-19,8,GM,Secondary
-20,1,IR,Primary
-20,4,UL,Secondary
-20,8,GM,Secondary
-22,4,UL,Primary
-22,8,GM,Primary
-23,3,VI,Secondary
-23,6,ZD,Primary
-23,8,GM,Secondary
-24,1,IR,Primary
-24,4,UL,Secondary
-24,8,GM,Primary
-25,2,LU,Primary
-25,8,GM,Secondary
+component_name,technology_code,application_type
+Electric Motors - Bearings,IR,Secondary
+Electric Motors - Bearings,VI,Primary
+Electric Motors - Bearings,UL,Secondary
+Electric Motors - Bearings,MC,Secondary
+Electric Motors - Elecrical Comps,IR,Secondary
+Electric Motors - Elecrical Comps,VI,Secondary
+Electric Motors - Elecrical Comps,UL,Secondary
+Electric Motors - Elecrical Comps,MC,Primary
+Rolling Element Bearings (Oil),LU,Primary
+Rolling Element Bearings (Oil),VI,Primary
+Rolling Element Bearings (Oil),UL,Secondary
+Rolling Element Bearings (Grease),VI,Primary
+Rolling Element Bearings (Grease),UL,Primary
+Gearboxes / Speed Reducers,IR,Secondary
+Gearboxes / Speed Reducers,LU,Primary
+Gearboxes / Speed Reducers,UL,Secondary
+Gearboxes / Speed Reducers,GM,Secondary
+Belt Drives,VI,Primary
+Chain Drives,VI,Primary
+Chain Drives,UL,Secondary
+Chain Drives,CW,Primary
+Chain Links,CW,Primary
+Couplings,IR,Secondary
+Couplings,VI,Primary
+Pumps,IR,Secondary
+Pumps,LU,Primary
+Pumps,VI,Primary
+Pumps,UL,Secondary
+Pumps,MC,Secondary
+Fans / Blowers,IR,Secondary
+Fans / Blowers,VI,Primary
+Fans / Blowers,MC,Primary
+Fans / Blowers,GM,Secondary
+Compressors (Reciprocating),IR,Secondary
+Compressors (Reciprocating),LU,Primary
+Compressors (Reciprocating),UL,Secondary
+Linear Rails,VI,Primary
+Hydraulic Power Units,IR,Secondary
+Hydraulic Power Units,LU,Primary
+Hydraulic Power Units,VI,Primary
+Hydraulic Power Units,UL,Secondary
+Hydraulic Power Units,GM,Primary
+Hydraulic Cylinders/Actuators,LU,Primary
+Hydraulic Cylinders/Actuators,UL,Secondary
+Pneumatic Systems,UL,Primary
+Pneumatic Systems,GM,Secondary
+Electrical Connections/Terminations,IR,Primary
+Electrical Connections/Terminations,UL,Secondary
+Electrical Distribution (Switchgear/MCCs),IR,Primary
+Electrical Distribution (Switchgear/MCCs),UL,Secondary
+Electrical Distribution (Switchgear/MCCs),GM,Secondary
+Transformers,IR,Primary
+Transformers,UL,Secondary
+Transformers,GM,Secondary
+Compressed Air Distribution,UL,Primary
+Compressed Air Distribution,GM,Primary
+FANUC Industrial Robots,VI,Secondary
+FANUC Industrial Robots,ZD,Primary
+FANUC Industrial Robots,GM,Secondary
+Process Heat Exchangers,IR,Primary
+Process Heat Exchangers,UL,Secondary
+Process Heat Exchangers,GM,Primary
+Machine Tool Spindles,LU,Primary
+Machine Tool Spindles,GM,Secondary

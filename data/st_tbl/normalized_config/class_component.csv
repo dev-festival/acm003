@@ -1,171 +1,171 @@
-class_id,component_id
-1,17
-1,18
-1,22
-3,4
-3,6
-3,11
-3,20
-3,24
-6,3
-6,4
-6,5
-7,18
-8,18
-8,20
-8,21
-8,24
-9,23
-11,20
-11,24
-15,7
-15,18
-16,12
-16,13
-16,20
-16,24
-20,4
-20,12
-20,13
-21,22
-22,3
-22,4
-22,5
-22,6
-22,7
-23,18
-23,20
-23,24
-25,17
-25,22
-27,18
-29,17
-29,22
-31,17
-31,24
-32,25
-33,3
-33,4
-33,6
-34,3
-34,4
-34,18
-36,18
-36,20
-37,3
-37,4
-38,4
-38,5
-38,6
-38,11
-38,18
-39,25
-51,18
-52,11
-52,20
-52,24
-53,18
-53,19
-53,20
-54,4
-54,5
-54,25
-58,5
-58,6
-58,11
-59,22
-60,24
-61,20
-61,24
-62,18
-62,24
-63,25
-68,5
-70,25
-73,3
-73,4
-73,6
-73,18
-74,3
-74,4
-74,23
-77,17
-77,22
-79,3
-79,4
-79,5
-79,6
-79,7
-80,15
-80,16
-80,25
-81,3
-81,4
-81,5
-84,11
-84,12
-84,13
-84,18
-85,18
-85,19
-85,20
-87,25
-88,6
-88,11
-88,18
-88,24
-89,3
-89,4
-89,5
-89,18
-90,22
-92,3
-92,4
-93,18
-93,20
-96,15
-96,16
-96,17
-96,22
-100,18
-100,19
-100,20
-101,25
-102,3
-102,4
-102,5
-102,15
-102,16
-102,18
-102,19
-104,3
-104,4
-104,5
-104,23
-107,24
-108,18
-108,23
-109,20
-109,24
-114,3
-114,4
-119,12
-119,13
-119,18
-121,25
-123,3
-123,4
-123,5
-123,6
-123,7
-124,3
-124,4
-124,5
-124,6
-124,7
-125,21
-125,24
-126,18
-128,24
-129,18
-129,20
+class_name,component_name
+Actuator,Pneumatic Systems
+Actuator,Electrical Connections/Terminations
+Actuator,Compressed Air Distribution
+Air Conditioner,Rolling Element Bearings (Grease)
+Air Conditioner,Belt Drives
+Air Conditioner,Fans / Blowers
+Air Conditioner,Transformers
+Air Conditioner,Process Heat Exchangers
+Automated Lifts,Rolling Element Bearings (Oil)
+Automated Lifts,Rolling Element Bearings (Grease)
+Automated Lifts,Gearboxes / Speed Reducers
+Automation Equipment,Electrical Connections/Terminations
+Boiler,Electrical Connections/Terminations
+Boiler,Transformers
+Boiler,Steam Traps
+Boiler,Process Heat Exchangers
+Booth,FANUC Industrial Robots
+Building,Transformers
+Building,Process Heat Exchangers
+Chain Conveyor,Chain Drives
+Chain Conveyor,Electrical Connections/Terminations
+Chiller,Compressors (Rotary Screw)
+Chiller,Compressors (Reciprocating)
+Chiller,Transformers
+Chiller,Process Heat Exchangers
+Compresser,Rolling Element Bearings (Grease)
+Compresser,Compressors (Rotary Screw)
+Compresser,Compressors (Reciprocating)
+Conditioner,Compressed Air Distribution
+Conveyor,Rolling Element Bearings (Oil)
+Conveyor,Rolling Element Bearings (Grease)
+Conveyor,Gearboxes / Speed Reducers
+Conveyor,Belt Drives
+Conveyor,Chain Drives
+Cookers,Electrical Connections/Terminations
+Cookers,Transformers
+Cookers,Process Heat Exchangers
+Dampener,Pneumatic Systems
+Dampener,Compressed Air Distribution
+Device,Electrical Connections/Terminations
+Dispensers,Pneumatic Systems
+Dispensers,Compressed Air Distribution
+Doors,Pneumatic Systems
+Doors,Process Heat Exchangers
+Drill,Machine Tool Spindles
+Drive Unit,Rolling Element Bearings (Oil)
+Drive Unit,Rolling Element Bearings (Grease)
+Drive Unit,Belt Drives
+Drop Lifts,Rolling Element Bearings (Oil)
+Drop Lifts,Rolling Element Bearings (Grease)
+Drop Lifts,Electrical Connections/Terminations
+Electrical,Electrical Connections/Terminations
+Electrical,Transformers
+Elevator,Rolling Element Bearings (Oil)
+Elevator,Rolling Element Bearings (Grease)
+Fan,Rolling Element Bearings (Grease)
+Fan,Gearboxes / Speed Reducers
+Fan,Belt Drives
+Fan,Fans / Blowers
+Fan,Electrical Connections/Terminations
+Fastening,Machine Tool Spindles
+Friction Conveyor,Electrical Connections/Terminations
+Furnace,Fans / Blowers
+Furnace,Transformers
+Furnace,Process Heat Exchangers
+Generator,Electrical Connections/Terminations
+Generator,Electrical Distribution (Switchgear/MCCs)
+Generator,Transformers
+Grinder,Rolling Element Bearings (Grease)
+Grinder,Gearboxes / Speed Reducers
+Grinder,Machine Tool Spindles
+HVAC,Gearboxes / Speed Reducers
+HVAC,Belt Drives
+HVAC,Fans / Blowers
+Head Assembly,Compressed Air Distribution
+Heat Exchanger,Process Heat Exchangers
+Heat Treatment,Transformers
+Heat Treatment,Process Heat Exchangers
+Heater,Electrical Connections/Terminations
+Heater,Process Heat Exchangers
+Hone,Machine Tool Spindles
+Lathe,Gearboxes / Speed Reducers
+Linebore,Machine Tool Spindles
+MECHANICAL \ FAN \ BELT DRIVEN FAN,Rolling Element Bearings (Oil)
+MECHANICAL \ FAN \ BELT DRIVEN FAN,Rolling Element Bearings (Grease)
+MECHANICAL \ FAN \ BELT DRIVEN FAN,Belt Drives
+MECHANICAL \ FAN \ BELT DRIVEN FAN,Electrical Connections/Terminations
+Manipulator,Rolling Element Bearings (Oil)
+Manipulator,Rolling Element Bearings (Grease)
+Manipulator,FANUC Industrial Robots
+Material Handling,Pneumatic Systems
+Material Handling,Compressed Air Distribution
+Mechanical,Rolling Element Bearings (Oil)
+Mechanical,Rolling Element Bearings (Grease)
+Mechanical,Gearboxes / Speed Reducers
+Mechanical,Belt Drives
+Mechanical,Chain Drives
+Mill,Hydraulic Power Units
+Mill,Hydraulic Cylinders/Actuators
+Mill,Machine Tool Spindles
+Mixers,Rolling Element Bearings (Oil)
+Mixers,Rolling Element Bearings (Grease)
+Mixers,Gearboxes / Speed Reducers
+Motor,Fans / Blowers
+Motor,Compressors (Rotary Screw)
+Motor,Compressors (Reciprocating)
+Motor,Electrical Connections/Terminations
+Motor Control Center,Electrical Connections/Terminations
+Motor Control Center,Electrical Distribution (Switchgear/MCCs)
+Motor Control Center,Transformers
+Nutrunner,Machine Tool Spindles
+Oven,Belt Drives
+Oven,Fans / Blowers
+Oven,Electrical Connections/Terminations
+Oven,Process Heat Exchangers
+Overhead Lifts,Rolling Element Bearings (Oil)
+Overhead Lifts,Rolling Element Bearings (Grease)
+Overhead Lifts,Gearboxes / Speed Reducers
+Overhead Lifts,Electrical Connections/Terminations
+Painting,Compressed Air Distribution
+Pallet Conveyor,Rolling Element Bearings (Oil)
+Pallet Conveyor,Rolling Element Bearings (Grease)
+Panel,Electrical Connections/Terminations
+Panel,Transformers
+Piping and Valving,Hydraulic Power Units
+Piping and Valving,Hydraulic Cylinders/Actuators
+Piping and Valving,Pneumatic Systems
+Piping and Valving,Compressed Air Distribution
+Power Distribution,Electrical Connections/Terminations
+Power Distribution,Electrical Distribution (Switchgear/MCCs)
+Power Distribution,Transformers
+Power Tool,Machine Tool Spindles
+Press,Rolling Element Bearings (Oil)
+Press,Rolling Element Bearings (Grease)
+Press,Gearboxes / Speed Reducers
+Press,Hydraulic Power Units
+Press,Hydraulic Cylinders/Actuators
+Press,Electrical Connections/Terminations
+Press,Electrical Distribution (Switchgear/MCCs)
+ROBOT TRANSFER UNIT (RTU),Rolling Element Bearings (Oil)
+ROBOT TRANSFER UNIT (RTU),Rolling Element Bearings (Grease)
+ROBOT TRANSFER UNIT (RTU),Gearboxes / Speed Reducers
+ROBOT TRANSFER UNIT (RTU),FANUC Industrial Robots
+Refrigeration,Process Heat Exchangers
+Robot,Electrical Connections/Terminations
+Robot,FANUC Industrial Robots
+SPOT WELDER,Transformers
+SPOT WELDER,Process Heat Exchangers
+Shuttle,Rolling Element Bearings (Oil)
+Shuttle,Rolling Element Bearings (Grease)
+Tanks,Compressors (Rotary Screw)
+Tanks,Compressors (Reciprocating)
+Tanks,Electrical Connections/Terminations
+Tooling,Machine Tool Spindles
+Transferring and Conveying,Rolling Element Bearings (Oil)
+Transferring and Conveying,Rolling Element Bearings (Grease)
+Transferring and Conveying,Gearboxes / Speed Reducers
+Transferring and Conveying,Belt Drives
+Transferring and Conveying,Chain Drives
+Transfers,Rolling Element Bearings (Oil)
+Transfers,Rolling Element Bearings (Grease)
+Transfers,Gearboxes / Speed Reducers
+Transfers,Belt Drives
+Transfers,Chain Drives
+Valve,Steam Traps
+Valve,Process Heat Exchangers
+Variable Frequency Drive,Electrical Connections/Terminations
+Water Treatment,Process Heat Exchangers
+Welder,Electrical Connections/Terminations
+Welder,Transformers

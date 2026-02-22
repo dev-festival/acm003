@@ -42,7 +42,7 @@ class ACMConfig:
         Directory containing the six CSV files. Defaults to 'normalized_config'.
     """
 
-    def __init__(self, config_dir: str | Path = 'normalized_config'):
+    def __init__(self, config_dir: str | Path = 'data/st_tbl/normalized_config'):
         self.config_dir = Path(config_dir)
         self._load_all()
         print(f"✓ ACMConfig loaded from '{self.config_dir}'")
