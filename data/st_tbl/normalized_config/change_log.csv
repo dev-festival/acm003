@@ -1,2 +1,6 @@
 log_id,timestamp,entity_type,action,entity_key,payload,notes,requested_by,status,reviewed_by,reviewed_at
 1,2026-02-22T22:50:00.884072+00:00,class_component,remove_request,MECHANICAL \ FAN \ BELT DRIVEN FAN ← Rolling Element Bearings (Oil),"{""class_name"": ""MECHANICAL \\ FAN \\ BELT DRIVEN FAN"", ""component_name"": ""Rolling Element Bearings (Oil)""}",We don't typically see oil bearings on our fans,Michael Moyer,pending,,
+2,2026-02-22T22:52:26.669219+00:00,component,add,Chain Pin,"{""component_name"": ""Chain Pin""}",,Michael Moyer,applied,,
+3,2026-02-22T22:52:26.676285+00:00,component_technology,add,Chain Pin → CW,"{""component_name"": ""Chain Pin"", ""technology_code"": ""CW"", ""application_type"": ""Primary""}",,Michael Moyer,applied,,
+4,2026-02-22T22:52:52.705212+00:00,class_component,add,Chain Conveyor ← Chain Pin,"{""class_name"": ""Chain Conveyor"", ""component_name"": ""Chain Pin""}",,Michael Moyer,applied,,
+5,2026-02-22T22:55:31.696847+00:00,component_technology,update_request,Compressed Air Distribution → UL,"{""component_name"": ""Compressed Air Distribution"", ""technology_code"": ""UL"", ""old_application_type"": ""Primary"", ""new_application_type"": ""Secondary""}",The compressed air system is typically audited by internal groups not as condition monitoring,Michael Moyer,pending,,
