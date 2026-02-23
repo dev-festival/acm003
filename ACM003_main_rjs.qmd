@@ -163,14 +163,15 @@ config = {
     'class_component': pd.read_csv(f'{config_dir}/class_component.csv')
 }
 
-# Build needs coverage
+# Build needs coverage using natural keys (post-migration)
 needs_coverage = (
     config['class_component']
-    .merge(config['classes'][['class_id', 'class_name']], on='class_id')
-    .merge(config['component_technology'][['component_id', 'technology_code', 'application_type']], on='component_id')
-    .merge(config['components'][['component_id', 'component_name']], on='component_id')
+    .merge(
+        config['component_technology'][['component_name', 'technology_code', 'application_type']], 
+        on='component_name'
+    )
     [['class_name', 'component_name', 'technology_code', 'application_type']]
-    .rename(columns={'class_name': 'ASSET_CLASS', 'technology_code': 'TECH'})  # Match your SQL column name
+    .rename(columns={'class_name': 'ASSET_CLASS', 'technology_code': 'TECH'})
 )
 
 print(f"✓ Built needs coverage: {len(needs_coverage)} class-component-technology mappings")
