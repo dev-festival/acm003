@@ -33,6 +33,9 @@ except FileNotFoundError:
     st.info("Please run your QMD analysis first to generate the coverage report.")
     st.stop()
 
+# Rename ALL FA% to Facilities 
+coverage_data['ASSET_DEPT'] = coverage_data['ASSET_DEPT'].str.replace(r'^FA.+', 'FAC', regex=True)
+
 from acm_config import ACMConfig
 
 @st.cache_resource
